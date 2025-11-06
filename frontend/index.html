@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LKRt Blockchain - Digital Money Transfer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔗 LKRt Blockchain</h1>
+            <p>Instant, Fee-Free Digital Money Transfers</p>
+        </header>
+
+        <!-- Login/Signup Section -->
+        <div id="auth-section">
+            <div class="auth-tabs">
+                <button class="tab-btn active" onclick="showTab('login')">Login</button>
+                <button class="tab-btn" onclick="showTab('signup')">Sign Up</button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form" class="auth-form">
+                <h2>Login</h2>
+                <input type="text" id="login-username" placeholder="Username">
+                <input type="password" id="login-password" placeholder="Password">
+                <button onclick="login()">Login</button>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signup-form" class="auth-form" style="display:none;">
+                <h2>Create Account</h2>
+                <input type="text" id="signup-username" placeholder="Username">
+                <input type="password" id="signup-password" placeholder="Password">
+                <input type="number" id="initial-balance" placeholder="Initial Balance (LKRt)" value="1000">
+                <button onclick="signup()">Create Wallet</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" style="display:none;">
+            <div class="user-info">
+                <h2>Welcome, <span id="username-display"></span></h2>
+                <p>Wallet: <span id="wallet-address"></span></p>
+                <p>Balance: <span id="balance-display"></span> LKRt</p>
+                <button onclick="logout()">Logout</button>
+            </div>
+
+            <!-- Transfer Form -->
+            <div class="transfer-section">
+                <h3>Send LKRt</h3>
+                <input type="text" id="receiver-address" placeholder="Receiver Wallet Address">
+                <input type="number" id="transfer-amount" placeholder="Amount (LKRt)" step="0.01">
+                <input type="password" id="transfer-password" placeholder="Confirm Password">
+                <button onclick="transfer()">Send</button>
+            </div>
+
+            <!-- Currency Conversion Form -->
+<div class="conversion-section">
+    <h3>Convert LKRt to Foreign Currency</h3>
+    <input type="number" id="convert-lkr-amount" placeholder="LKRt Amount">
+    <input type="text" id="foreign-currency" placeholder="Currency Code (e.g. USD, EUR)">
+    <button onclick="convertCurrency()">Convert</button>
+    <div id="conversion-result"></div>
+</div>
+
+
+            <!-- Blockchain Explorer -->
+            <div class="blockchain-explorer">
+                <h3>Blockchain Explorer</h3>
+                <button onclick="loadBlockchain()">Refresh Blockchain</button>
+                <div id="blockchain-display"></div>
+            </div>
+        </div>
+
+        <!-- Message Display -->
+        <div id="message-box"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
