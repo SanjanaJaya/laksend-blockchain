@@ -1,99 +1,47 @@
-import sqlite3
-import json
-from typing import Dict, Optional
+import os
+from supabase import create_client, Client
+
+SUPABASE_URL = "https://ghvguuicklhncdsodrqj.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdodmd1dWlja2xobmNkc29kcnFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0NDIzMTAsImV4cCI6MjA3ODAxODMxMH0.j7FYo21OMW_FZoUvTXN6OuZ6uSFHXE_RDpwWgnDcHc8"
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 class Database:
-    def __init__(self, db_name: str = "blockchain.db"):
-        self.db_name = db_name
-        self.init_database()
-    
-    def init_database(self):
-        """Initialize database tables"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        # Users table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                wallet_address TEXT UNIQUE NOT NULL,
-                public_key TEXT NOT NULL,
-                private_key_encrypted TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
-    
-    def create_user(self, username: str, password_hash: str, 
-                   wallet_info: Dict) -> bool:
-        """Create new user with wallet"""
-        try:
-            conn = sqlite3.connect(self.db_name)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                INSERT INTO users (username, password_hash, wallet_address, 
-                                 public_key, private_key_encrypted)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (
-                username,
-                password_hash,
-                wallet_info['address'],
-                wallet_info['public_key'],
-                wallet_info['private_key']
-            ))
-            
-            conn.commit()
-            conn.close()
-            return True
-        except sqlite3.IntegrityError:
-            return False
-    
-    def get_user(self, username: str) -> Optional[Dict]:
-        """Get user information"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT username, wallet_address, public_key, 
-                   private_key_encrypted, password_hash
-            FROM users WHERE username = ?
-        ''', (username,))
-        
-        result = cursor.fetchone()
-        conn.close()
-        
+    def create_user(self, username, password_hash, wallet_info):
+        data = {
+            "username": username,
+            "password_hash": password_hash,
+            "wallet_address": wallet_info["address"],
+            "public_key": wallet_info["public_key"],
+            "private_key_encrypted": wallet_info["private_key"],  # You can encrypt this
+            "balance": 1000,
+            "foreign_balances": "{}"
+        }
+        resp = supabase.table("users").insert(data).execute()
+        return bool(resp.data)
+
+    def get_user(self, username):
+        query = supabase.table("users").select("*").eq("username", username).execute()
+        result = query.data
         if result:
+            user = result[0]
             return {
-                "username": result[0],
-                "wallet_address": result[1],
-                "public_key": result[2],
-                "private_key": result[3],
-                "password_hash": result[4]
+                "username": user["username"],
+                "wallet_address": user["wallet_address"],
+                "public_key": user["public_key"],
+                "private_key": user["private_key_encrypted"],
+                "password_hash": user["password_hash"]
             }
         return None
-    
-    def get_user_by_address(self, address: str) -> Optional[Dict]:
-        """Get user by wallet address"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT username, wallet_address, public_key
-            FROM users WHERE wallet_address = ?
-        ''', (address,))
-        
-        result = cursor.fetchone()
-        conn.close()
-        
+
+    def get_user_by_address(self, address):
+        query = supabase.table("users").select("*").eq("wallet_address", address).execute()
+        result = query.data
         if result:
+            user = result[0]
             return {
-                "username": result[0],
-                "wallet_address": result[1],
-                "public_key": result[2]
+                "username": user["username"],
+                "wallet_address": user["wallet_address"],
+                "public_key": user["public_key"]
             }
         return None
