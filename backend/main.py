@@ -340,7 +340,6 @@ def convert_currency(request: ConvertRequest):
             "to_balance": result["to_balance"],
             "timestamp": result["timestamp"]
         }
-        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -371,17 +370,24 @@ def get_latest_block():
 def get_transactions(wallet_address: str):
     """
     Get all transactions for a specific wallet address.
+    FIXED: Properly maps transaction keys from backend to frontend format.
     """
     transactions = []
     
     # Iterate through all blocks
     for block in blockchain.chain:
         for tx in block.transactions:
-            # Check if wallet is sender or receiver
-            if tx.get('from_address') == wallet_address or tx.get('to_address') == wallet_address:
+            # FIXED: Use correct keys 'sender' and 'receiver' from Transaction.to_dict()
+            if tx.get('sender') == wallet_address or tx.get('receiver') == wallet_address:
                 tx_info = tx.copy()
                 tx_info['block_index'] = block.index
                 tx_info['timestamp'] = block.timestamp
+                
+                # Map backend keys to frontend expected keys
+                tx_info['fromaddress'] = tx.get('sender')
+                tx_info['toaddress'] = tx.get('receiver')
+                tx_info['amount'] = tx.get('amount_LKRt')
+                
                 transactions.append(tx_info)
     
     return {
