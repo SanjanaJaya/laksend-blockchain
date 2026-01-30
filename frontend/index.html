@@ -141,6 +141,45 @@
             font-size: 14px;
         }
 
+        .wallet-address-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .wallet-address-text {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .copy-btn.copied {
+            background: #28a745;
+            border-color: #28a745;
+        }
+
         .currency-portfolio {
             background: #f8f9fa;
             padding: 20px;
@@ -225,9 +264,186 @@
             grid-template-columns: 1fr 1fr;
             gap: 15px;
         }
+
+        /* Popup Notification Styles */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+        }
+
+        .notification {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
+            border-left: 5px solid #667eea;
+        }
+
+        .notification.success {
+            border-left-color: #28a745;
+        }
+
+        .notification.error {
+            border-left-color: #dc3545;
+        }
+
+        .notification.info {
+            border-left-color: #17a2b8;
+        }
+
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .notification-title {
+            font-weight: 700;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 25px;
+            height: 25px;
+            line-height: 20px;
+        }
+
+        .notification-close:hover {
+            color: #333;
+        }
+
+        .notification-body {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .notification.closing {
+            animation: slideOut 0.3s ease-out forwards;
+        }
+
+        /* Transaction History Styles */
+        .transaction-history {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .transaction-history h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .transaction-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s;
+        }
+
+        .transaction-item:hover {
+            transform: translateX(5px);
+        }
+
+        .transaction-item.sent {
+            border-left-color: #dc3545;
+        }
+
+        .transaction-item.received {
+            border-left-color: #28a745;
+        }
+
+        .transaction-item.conversion {
+            border-left-color: #ffc107;
+        }
+
+        .transaction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .transaction-type {
+            font-weight: 700;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .transaction-amount {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .transaction-item.sent .transaction-amount {
+            color: #dc3545;
+        }
+
+        .transaction-item.received .transaction-amount {
+            color: #28a745;
+        }
+
+        .transaction-details {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .transaction-time {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .no-transactions {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
+    <!-- Notification Container -->
+    <div class="notification-container" id="notification-container"></div>
+
     <div class="container">
         <h1>🔐 LKRt Blockchain Wallet</h1>
         
@@ -275,13 +491,27 @@
         <div id="dashboard-section">
             <div class="user-info">
                 <h2>Welcome, <span id="username-display"></span>!</h2>
-                <p><strong>Wallet Address:</strong> <span id="wallet-address"></span></p>
+                <div class="wallet-address-container">
+                    <div>
+                        <strong>Wallet Address:</strong>
+                        <div class="wallet-address-text" id="wallet-address"></div>
+                    </div>
+                    <button class="copy-btn" onclick="copyAddress()">Copy</button>
+                </div>
             </div>
 
             <!-- Currency Portfolio -->
             <div class="currency-portfolio">
                 <h3>💼 Your Currency Portfolio</h3>
                 <div id="portfolio-grid" class="currency-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Transaction History -->
+            <div class="transaction-history">
+                <h3>📜 Recent Transactions</h3>
+                <div id="transaction-list">
                     <!-- Populated by JavaScript -->
                 </div>
             </div>

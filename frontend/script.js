@@ -1,6 +1,8 @@
 const API_URL = 'http://localhost:8000';
 let currentUser = null;
 let supportedCurrencies = [];
+let lastTransactionCount = 0;
+let transactionCheckInterval = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -50,6 +52,8 @@ async function verifyAndRestoreSession(username) {
             document.getElementById('wallet-address').textContent = data.wallet_address;
             
             loadPortfolio();
+            loadTransactionHistory();
+            startTransactionMonitoring();
         } else {
             // Session invalid, clear storage
             localStorage.removeItem('currentUser');
@@ -64,6 +68,139 @@ async function verifyAndRestoreSession(username) {
         document.getElementById('auth-section').style.display = 'block';
         document.getElementById('dashboard-section').style.display = 'none';
     }
+}
+
+// Start monitoring for new transactions
+function startTransactionMonitoring() {
+    // Check every 5 seconds for new transactions
+    transactionCheckInterval = setInterval(async () => {
+        if (currentUser) {
+            await checkForNewTransactions();
+        }
+    }, 5000);
+}
+
+// Stop transaction monitoring
+function stopTransactionMonitoring() {
+    if (transactionCheckInterval) {
+        clearInterval(transactionCheckInterval);
+        transactionCheckInterval = null;
+    }
+}
+
+// Check for new transactions
+async function checkForNewTransactions() {
+    try {
+        const response = await fetch(`${API_URL}/transactions/${currentUser.wallet_address}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            const currentCount = data.transaction_count;
+            
+            // If we have a new transaction
+            if (lastTransactionCount > 0 && currentCount > lastTransactionCount) {
+                // Get the latest transaction
+                const latestTx = data.transactions[data.transactions.length - 1];
+                
+                // Check if it's a received transaction
+                if (latestTx.to_address === currentUser.wallet_address && 
+                    latestTx.from_address !== 'SYSTEM' &&
+                    latestTx.from_address !== currentUser.wallet_address) {
+                    
+                    // Get sender username
+                    const senderInfo = await getSenderInfo(latestTx.from_address);
+                    const senderUsername = senderInfo ? senderInfo.username : 'Unknown User';
+                    
+                    // Show notification
+                    showNotification(
+                        'success',
+                        '💰 Payment Received!',
+                        `You received ${latestTx.amount} LKRt from ${senderUsername}`
+                    );
+                    
+                    // Reload portfolio to show updated balance
+                    loadPortfolio();
+                    loadTransactionHistory();
+                }
+            }
+            
+            lastTransactionCount = currentCount;
+        }
+    } catch (error) {
+        console.error('Error checking transactions:', error);
+    }
+}
+
+// Get sender information
+async function getSenderInfo(walletAddress) {
+    try {
+        const response = await fetch(`${API_URL}/balance/${walletAddress}`);
+        if (response.ok) {
+            return await response.json();
+        }
+    } catch (error) {
+        console.error('Error fetching sender info:', error);
+    }
+    return null;
+}
+
+// Copy wallet address to clipboard
+async function copyAddress() {
+    const address = document.getElementById('wallet-address').textContent;
+    const copyBtn = document.querySelector('.copy-btn');
+    
+    try {
+        await navigator.clipboard.writeText(address);
+        
+        // Change button text temporarily
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '✓ Copied!';
+        copyBtn.classList.add('copied');
+        
+        showNotification('success', 'Address Copied', 'Wallet address copied to clipboard');
+        
+        setTimeout(() => {
+            copyBtn.textContent = originalText;
+            copyBtn.classList.remove('copied');
+        }, 2000);
+    } catch (error) {
+        showNotification('error', 'Copy Failed', 'Failed to copy address to clipboard');
+    }
+}
+
+// Show popup notification
+function showNotification(type, title, message) {
+    const container = document.getElementById('notification-container');
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    notification.innerHTML = `
+        <div class="notification-header">
+            <span class="notification-title">${title}</span>
+            <button class="notification-close" onclick="closeNotification(this)">×</button>
+        </div>
+        <div class="notification-body">${message}</div>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            closeNotification(notification.querySelector('.notification-close'));
+        }
+    }, 5000);
+}
+
+// Close notification
+function closeNotification(button) {
+    const notification = button.closest('.notification');
+    notification.classList.add('closing');
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 300);
 }
 
 // Load supported currencies from backend
@@ -110,7 +247,7 @@ function populateCurrencyDropdowns() {
     toSelect.appendChild(lkrtOption);
 }
 
-// Show message function
+// Show message function (legacy - kept for compatibility)
 function showMessage(message, type = 'success') {
     const messageBox = document.getElementById('message-box');
     messageBox.textContent = message;
@@ -147,7 +284,7 @@ async function signup() {
     const initialBalance = parseFloat(document.getElementById('initial-balance').value);
     
     if (!username || !password) {
-        showMessage('Please fill all fields', 'error');
+        showNotification('error', 'Validation Error', 'Please fill all fields');
         return;
     }
     
@@ -165,7 +302,7 @@ async function signup() {
         const data = await response.json();
         
         if (response.ok) {
-            showMessage(`Account created! Private Key: ${data.private_key.substring(0, 20)}... (SAVE THIS!)`, 'success');
+            showNotification('success', 'Account Created', `Private Key: ${data.private_key.substring(0, 30)}... (SAVE THIS!)`);
             
             // Clear form
             document.getElementById('signup-username').value = '';
@@ -174,10 +311,10 @@ async function signup() {
             
             setTimeout(() => showTab('login'), 3000);
         } else {
-            showMessage(data.detail || 'Signup failed', 'error');
+            showNotification('error', 'Signup Failed', data.detail || 'Could not create account');
         }
     } catch (error) {
-        showMessage('Connection error', 'error');
+        showNotification('error', 'Connection Error', 'Could not connect to server');
     }
 }
 
@@ -187,7 +324,7 @@ async function login() {
     const password = document.getElementById('login-password').value;
     
     if (!username || !password) {
-        showMessage('Please fill all fields', 'error');
+        showNotification('error', 'Validation Error', 'Please fill all fields');
         return;
     }
     
@@ -213,18 +350,19 @@ async function login() {
             // Store session in localStorage (including password for transfers)
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             
-            showMessage('Login successful!', 'success');
+            showNotification('success', 'Login Successful', `Welcome back, ${data.username}!`);
             
             // Clear login form
             document.getElementById('login-username').value = '';
             document.getElementById('login-password').value = '';
             
             showDashboard(data);
+            startTransactionMonitoring();
         } else {
-            showMessage(data.detail || 'Login failed', 'error');
+            showNotification('error', 'Login Failed', data.detail || 'Invalid credentials');
         }
     } catch (error) {
-        showMessage('Connection error', 'error');
+        showNotification('error', 'Connection Error', 'Could not connect to server');
     }
 }
 
@@ -237,6 +375,7 @@ function showDashboard(userData) {
     document.getElementById('wallet-address').textContent = userData.wallet_address;
     
     loadPortfolio();
+    loadTransactionHistory();
 }
 
 // Load user portfolio
@@ -276,8 +415,92 @@ async function loadPortfolio() {
         updateFromCurrencyDropdown(portfolio);
         
     } catch (error) {
-        showMessage('Failed to load portfolio', 'error');
+        showNotification('error', 'Load Error', 'Failed to load portfolio');
         console.error('Portfolio load error:', error);
+    }
+}
+
+// Load transaction history
+async function loadTransactionHistory() {
+    if (!currentUser) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/transactions/${currentUser.wallet_address}`);
+        const data = await response.json();
+        
+        const transactionList = document.getElementById('transaction-list');
+        transactionList.innerHTML = '';
+        
+        if (data.transaction_count === 0) {
+            transactionList.innerHTML = '<div class="no-transactions">No transactions yet</div>';
+            lastTransactionCount = 0;
+            return;
+        }
+        
+        // Store transaction count
+        lastTransactionCount = data.transaction_count;
+        
+        // Get recent 5 transactions (reversed to show newest first)
+        const recentTransactions = data.transactions.slice(-5).reverse();
+        
+        for (const tx of recentTransactions) {
+            const isSent = tx.from_address === currentUser.wallet_address;
+            const isReceived = tx.to_address === currentUser.wallet_address;
+            const isConversion = tx.type === 'CONVERSION';
+            
+            let txType = '';
+            let txClass = '';
+            let amountDisplay = '';
+            let details = '';
+            
+            if (isConversion) {
+                txType = '💱 Currency Conversion';
+                txClass = 'conversion';
+                amountDisplay = `${tx.amount_converted} ${tx.from_currency} → ${tx.amount_received} ${tx.to_currency}`;
+                details = `Exchange Rate: 1 ${tx.from_currency} = ${tx.exchange_rate?.toFixed(4)} ${tx.to_currency}`;
+            } else if (isSent) {
+                txType = '📤 Sent';
+                txClass = 'sent';
+                amountDisplay = `- ${tx.amount} LKRt`;
+                
+                // Get receiver info
+                const receiverInfo = await getSenderInfo(tx.to_address);
+                const receiverName = receiverInfo ? receiverInfo.username : 'Unknown';
+                details = `To: ${receiverName} (${tx.to_address.substring(0, 10)}...)`;
+            } else if (isReceived) {
+                txType = '📥 Received';
+                txClass = 'received';
+                amountDisplay = `+ ${tx.amount} LKRt`;
+                
+                // Get sender info
+                if (tx.from_address === 'SYSTEM') {
+                    details = 'From: System (Initial Balance)';
+                } else {
+                    const senderInfo = await getSenderInfo(tx.from_address);
+                    const senderName = senderInfo ? senderInfo.username : 'Unknown';
+                    details = `From: ${senderName} (${tx.from_address.substring(0, 10)}...)`;
+                }
+            }
+            
+            const timestamp = new Date(tx.timestamp * 1000).toLocaleString();
+            
+            const txItem = document.createElement('div');
+            txItem.className = `transaction-item ${txClass}`;
+            txItem.innerHTML = `
+                <div class="transaction-header">
+                    <span class="transaction-type">${txType}</span>
+                    <span class="transaction-amount">${amountDisplay}</span>
+                </div>
+                <div class="transaction-details">${details}</div>
+                <div class="transaction-time">${timestamp}</div>
+            `;
+            
+            transactionList.appendChild(txItem);
+        }
+        
+    } catch (error) {
+        showNotification('error', 'Load Error', 'Failed to load transaction history');
+        console.error('Transaction history error:', error);
     }
 }
 
@@ -317,17 +540,17 @@ async function convertCurrency() {
     const amount = parseFloat(document.getElementById('convert-amount').value);
     
     if (!fromCurrency || !toCurrency || !amount) {
-        showMessage('Please fill all conversion fields', 'error');
+        showNotification('error', 'Validation Error', 'Please fill all conversion fields');
         return;
     }
     
     if (amount <= 0) {
-        showMessage('Amount must be positive', 'error');
+        showNotification('error', 'Validation Error', 'Amount must be positive');
         return;
     }
     
     if (fromCurrency === toCurrency) {
-        showMessage('Cannot convert currency to itself', 'error');
+        showNotification('error', 'Validation Error', 'Cannot convert currency to itself');
         return;
     }
     
@@ -346,7 +569,8 @@ async function convertCurrency() {
         const data = await response.json();
         
         if (response.ok) {
-            showMessage('Conversion successful!', 'success');
+            showNotification('success', '💱 Conversion Successful', 
+                `Converted ${data.amount_converted} ${data.from_currency} to ${data.amount_received} ${data.to_currency}`);
             
             const resultDiv = document.getElementById('conversion-result');
             resultDiv.style.display = 'block';
@@ -362,14 +586,15 @@ async function convertCurrency() {
             // Clear input
             document.getElementById('convert-amount').value = '';
             
-            // Reload portfolio
+            // Reload portfolio and transaction history
             loadPortfolio();
+            loadTransactionHistory();
             
         } else {
-            showMessage(data.detail || 'Conversion failed', 'error');
+            showNotification('error', 'Conversion Failed', data.detail || 'Could not convert currency');
         }
     } catch (error) {
-        showMessage('Connection error', 'error');
+        showNotification('error', 'Connection Error', 'Could not connect to server');
     }
 }
 
@@ -380,12 +605,12 @@ async function transfer() {
     const password = document.getElementById('transfer-password').value;
     
     if (!receiverAddress || !amount || !password) {
-        showMessage('Please fill all fields', 'error');
+        showNotification('error', 'Validation Error', 'Please fill all fields');
         return;
     }
     
     if (amount <= 0) {
-        showMessage('Amount must be positive', 'error');
+        showNotification('error', 'Validation Error', 'Amount must be positive');
         return;
     }
     
@@ -404,26 +629,34 @@ async function transfer() {
         const data = await response.json();
         
         if (response.ok) {
-            showMessage(`Transfer successful! New balance: ${data.new_balance} LKRt`, 'success');
+            // Get receiver info
+            const receiverInfo = await getSenderInfo(receiverAddress);
+            const receiverName = receiverInfo ? receiverInfo.username : 'Unknown User';
+            
+            showNotification('success', '✅ Transfer Successful', 
+                `Sent ${amount} LKRt to ${receiverName}. New balance: ${data.new_balance} LKRt`);
             
             // Clear inputs
             document.getElementById('receiver-address').value = '';
             document.getElementById('transfer-amount').value = '';
             document.getElementById('transfer-password').value = '';
             
-            // Reload portfolio
+            // Reload portfolio and transaction history
             loadPortfolio();
+            loadTransactionHistory();
         } else {
-            showMessage(data.detail || 'Transfer failed', 'error');
+            showNotification('error', 'Transfer Failed', data.detail || 'Could not complete transfer');
         }
     } catch (error) {
-        showMessage('Connection error', 'error');
+        showNotification('error', 'Connection Error', 'Could not connect to server');
     }
 }
 
 // Logout
 function logout() {
+    stopTransactionMonitoring();
     currentUser = null;
+    lastTransactionCount = 0;
     localStorage.removeItem('currentUser');
     
     document.getElementById('auth-section').style.display = 'block';
@@ -433,6 +666,6 @@ function logout() {
     document.getElementById('login-username').value = '';
     document.getElementById('login-password').value = '';
     
-    showMessage('Logged out successfully', 'success');
+    showNotification('info', 'Logged Out', 'You have been logged out successfully');
     showTab('login');
 }
