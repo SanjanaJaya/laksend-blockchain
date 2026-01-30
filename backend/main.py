@@ -2,8 +2,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import hashlib
-from typing import Optional
-
+from typing import Optional, List
 from blockchain import Blockchain
 from wallet import Wallet
 from transaction import Transaction
@@ -25,6 +24,9 @@ app.add_middleware(
 blockchain = Blockchain()
 db = Database()
 
+# Supported currencies
+SUPPORTED_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "CNY", "INR", "SGD"]
+
 # Pydantic models for request validation
 class SignupRequest(BaseModel):
     username: str
@@ -43,8 +45,9 @@ class TransferRequest(BaseModel):
 
 class ConvertRequest(BaseModel):
     username: str
-    lkr_amount: float
-    foreign_currency: str
+    from_currency: str
+    to_currency: str
+    amount: float
 
 # API Endpoints
 @app.get("/")
@@ -72,7 +75,6 @@ def signup(request: SignupRequest):
     
     # 4. Store user in Supabase database
     success = db.create_user(request.username, password_hash, wallet_info)
-    
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -92,7 +94,7 @@ def signup(request: SignupRequest):
         "wallet_address": wallet.address,
         "public_key": wallet.public_key,
         "initial_balance": request.initial_balance,
-        "private_key": wallet.private_key,  # ⚠️ SHOW ONLY ONCE - Client must save!
+        "private_key": wallet.private_key,
         "warning": "Save your private key securely! It cannot be recovered if lost."
     }
 
@@ -103,7 +105,6 @@ def login(request: LoginRequest):
     """
     # 1. Get user from database
     user = db.get_user(request.username)
-    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -137,7 +138,6 @@ def get_balance(wallet_address: str):
     """
     balance = blockchain.get_balance(wallet_address)
     user = db.get_user_by_address(wallet_address)
-    
     return {
         "wallet_address": wallet_address,
         "username": user['username'] if user else "Unknown",
@@ -150,7 +150,6 @@ def get_user_info(username: str):
     Get user information by username.
     """
     user = db.get_user(username)
-    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -158,7 +157,6 @@ def get_user_info(username: str):
         )
     
     balance = blockchain.get_balance(user['wallet_address'])
-    
     return {
         "username": user['username'],
         "wallet_address": user['wallet_address'],
@@ -237,14 +235,60 @@ def transfer(request: TransferRequest):
         "message": "Transfer successful",
         "transaction": tx.to_dict(),
         "block_index": block.index,
-        "sender_new_balance": blockchain.get_balance(sender['wallet_address']),
+        "new_balance": blockchain.get_balance(sender['wallet_address']),
         "receiver_balance": blockchain.get_balance(request.receiver_address)
+    }
+
+@app.get("/currencies")
+def get_supported_currencies():
+    """
+    Get list of supported currencies for conversion.
+    """
+    return {
+        "currencies": SUPPORTED_CURRENCIES,
+        "base_currency": "LKRt"
+    }
+
+@app.get("/portfolio/{username}")
+def get_user_portfolio(username: str):
+    """
+    Get all currency balances for a user.
+    """
+    user = db.get_user(username)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    wallet_address = user['wallet_address']
+    
+    # Get LKRt balance
+    lkr_balance = blockchain.get_balance(wallet_address)
+    
+    # Get all foreign currency balances
+    portfolio = {
+        "LKRt": lkr_balance
+    }
+    
+    for currency in SUPPORTED_CURRENCIES:
+        fx_key = f"FXT_{currency}_{wallet_address}"
+        fx_balance = blockchain.balances.get(fx_key, 0)
+        if fx_balance > 0:
+            portfolio[currency] = fx_balance
+    
+    return {
+        "username": username,
+        "wallet_address": wallet_address,
+        "portfolio": portfolio,
+        "total_currencies": len([v for v in portfolio.values() if v > 0])
     }
 
 @app.post("/convert")
 def convert_currency(request: ConvertRequest):
     """
-    Convert LKRt to foreign currency using smart contract.
+    Instant currency conversion using smart contract.
+    Supports LKRt to foreign currency and foreign to foreign conversions.
     """
     # 1. Get user from database
     user = db.get_user(request.username)
@@ -256,33 +300,52 @@ def convert_currency(request: ConvertRequest):
     
     wallet_address = user['wallet_address']
     
-    # 2. Execute conversion smart contract
-    try:
-        fx_amount = conversion_contract(
-            blockchain, 
-            wallet_address, 
-            request.lkr_amount, 
-            request.foreign_currency
+    # 2. Validate currencies
+    if request.from_currency not in ["LKRt"] + SUPPORTED_CURRENCIES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid source currency: {request.from_currency}"
         )
+    
+    if request.to_currency not in ["LKRt"] + SUPPORTED_CURRENCIES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid target currency: {request.to_currency}"
+        )
+    
+    if request.from_currency == request.to_currency:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot convert currency to itself"
+        )
+    
+    # 3. Execute conversion smart contract
+    try:
+        result = conversion_contract(
+            blockchain,
+            wallet_address,
+            request.from_currency,
+            request.to_currency,
+            request.amount
+        )
+        
+        return {
+            "message": "Conversion successful",
+            "from_currency": request.from_currency,
+            "to_currency": request.to_currency,
+            "amount_converted": request.amount,
+            "amount_received": result["amount_received"],
+            "exchange_rate": result["exchange_rate"],
+            "from_balance": result["from_balance"],
+            "to_balance": result["to_balance"],
+            "timestamp": result["timestamp"]
+        }
+        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    
-    # 3. Get updated balances
-    fx_key = f"FXT_{request.foreign_currency}_{wallet_address}"
-    fx_balance = blockchain.balances.get(fx_key, 0)
-    lkr_balance = blockchain.get_balance(wallet_address)
-    
-    return {
-        "message": f"Converted {request.lkr_amount} LKRt to {fx_amount} {request.foreign_currency}",
-        "lkr_balance": lkr_balance,
-        "fx_balance": fx_balance,
-        "currency": request.foreign_currency,
-        "amount": fx_amount,
-        "wallet_address": wallet_address
-    }
 
 @app.get("/blockchain")
 def get_blockchain():

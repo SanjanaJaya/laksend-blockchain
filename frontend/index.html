@@ -3,79 +3,334 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LKRt Blockchain - Digital Money Transfer</title>
-    <link rel="stylesheet" href="style.css">
+    <title>LKRt Blockchain Wallet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 900px;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        #message-box {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 500;
+        }
+
+        #message-box.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        #message-box.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        #dashboard-section {
+            display: none;
+        }
+
+        .user-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 25px;
+            border-radius: 12px;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .user-info h2 {
+            margin-bottom: 15px;
+        }
+
+        .user-info p {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .currency-portfolio {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .currency-portfolio h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .currency-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .currency-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .currency-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .currency-code {
+            font-size: 18px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .currency-amount {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .conversion-result {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            margin-top: 20px;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+
+        select {
+            cursor: pointer;
+            background-color: white;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🔗 LKRt Blockchain</h1>
-            <p>Instant, Fee-Free Digital Money Transfers</p>
-        </header>
+        <h1>🔐 LKRt Blockchain Wallet</h1>
+        
+        <div id="message-box"></div>
 
-        <!-- Login/Signup Section -->
+        <!-- Authentication Section -->
         <div id="auth-section">
-            <div class="auth-tabs">
+            <div class="tabs">
                 <button class="tab-btn active" onclick="showTab('login')">Login</button>
                 <button class="tab-btn" onclick="showTab('signup')">Sign Up</button>
             </div>
 
             <!-- Login Form -->
-            <div id="login-form" class="auth-form">
-                <h2>Login</h2>
-                <input type="text" id="login-username" placeholder="Username">
-                <input type="password" id="login-password" placeholder="Password">
+            <div id="login-form" style="display: flex; flex-direction: column;">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password">
+                </div>
                 <button onclick="login()">Login</button>
             </div>
 
             <!-- Signup Form -->
-            <div id="signup-form" class="auth-form" style="display:none;">
-                <h2>Create Account</h2>
-                <input type="text" id="signup-username" placeholder="Username">
-                <input type="password" id="signup-password" placeholder="Password">
-                <input type="number" id="initial-balance" placeholder="Initial Balance (LKRt)" value="1000">
-                <button onclick="signup()">Create Wallet</button>
+            <div id="signup-form" style="display: none; flex-direction: column;">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="signup-username" placeholder="Choose username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="signup-password" placeholder="Choose password">
+                </div>
+                <div class="form-group">
+                    <label>Initial Balance (LKRt)</label>
+                    <input type="number" id="initial-balance" value="1000" min="0">
+                </div>
+                <button onclick="signup()">Create Account</button>
             </div>
         </div>
 
         <!-- Dashboard Section -->
-        <div id="dashboard-section" style="display:none;">
+        <div id="dashboard-section">
             <div class="user-info">
-                <h2>Welcome, <span id="username-display"></span></h2>
-                <p>Wallet: <span id="wallet-address"></span></p>
-                <p>Balance: <span id="balance-display"></span> LKRt</p>
-                <button onclick="logout()">Logout</button>
+                <h2>Welcome, <span id="username-display"></span>!</h2>
+                <p><strong>Wallet Address:</strong> <span id="wallet-address"></span></p>
             </div>
 
-            <!-- Transfer Form -->
-            <div class="transfer-section">
-                <h3>Send LKRt</h3>
-                <input type="text" id="receiver-address" placeholder="Receiver Wallet Address">
-                <input type="number" id="transfer-amount" placeholder="Amount (LKRt)" step="0.01">
-                <input type="password" id="transfer-password" placeholder="Confirm Password">
-                <button onclick="transfer()">Send</button>
+            <!-- Currency Portfolio -->
+            <div class="currency-portfolio">
+                <h3>💼 Your Currency Portfolio</h3>
+                <div id="portfolio-grid" class="currency-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
             </div>
 
-            <!-- Currency Conversion Form -->
-<div class="conversion-section">
-    <h3>Convert LKRt to Foreign Currency</h3>
-    <input type="number" id="convert-lkr-amount" placeholder="LKRt Amount">
-    <input type="text" id="foreign-currency" placeholder="Currency Code (e.g. USD, EUR)">
-    <button onclick="convertCurrency()">Convert</button>
-    <div id="conversion-result"></div>
-</div>
-
-
-            <!-- Blockchain Explorer -->
-            <div class="blockchain-explorer">
-                <h3>Blockchain Explorer</h3>
-                <button onclick="loadBlockchain()">Refresh Blockchain</button>
-                <div id="blockchain-display"></div>
+            <!-- Currency Conversion -->
+            <div class="section">
+                <h3>💱 Currency Conversion</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>From Currency</label>
+                        <select id="from-currency">
+                            <option value="LKRt">LKRt</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>To Currency</label>
+                        <select id="to-currency">
+                            <option value="">Select currency...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="number" id="convert-amount" placeholder="Enter amount" min="0" step="0.01">
+                </div>
+                <button onclick="convertCurrency()">Convert Now</button>
+                <div id="conversion-result" class="conversion-result" style="display:none;"></div>
             </div>
+
+            <!-- Transfer LKRt -->
+            <div class="section">
+                <h3>💸 Transfer LKRt</h3>
+                <div class="form-group">
+                    <label>Receiver Wallet Address</label>
+                    <input type="text" id="receiver-address" placeholder="Enter receiver's wallet address">
+                </div>
+                <div class="form-group">
+                    <label>Amount (LKRt)</label>
+                    <input type="number" id="transfer-amount" placeholder="Enter amount" min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" id="transfer-password" placeholder="Enter your password">
+                </div>
+                <button onclick="transfer()">Send Transfer</button>
+            </div>
+
+            <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
-
-        <!-- Message Display -->
-        <div id="message-box"></div>
     </div>
 
     <script src="script.js"></script>
