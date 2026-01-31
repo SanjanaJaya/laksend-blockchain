@@ -132,10 +132,16 @@
                         <p>Transfer funds to another wallet</p>
                     </div>
 
+                    <!-- Favorite Payees Section -->
+                    <div class="section" id="favorites-section" style="display: none;">
+                        <h3>⭐ Favorite Payees</h3>
+                        <div id="favorites-list" class="favorites-list"></div>
+                    </div>
+
                     <div class="section">
                         <div class="form-group">
-                            <label>Receiver's Wallet Address</label>
-                            <input type="text" id="receiver-address" placeholder="Enter wallet address" oninput="fetchReceiverInfo()">
+                            <label>Receiver's Wallet Address or Username</label>
+                            <input type="text" id="receiver-address" placeholder="Enter wallet address or @username" oninput="fetchReceiverInfo()">
                             <div id="receiver-info" class="receiver-info"></div>
                         </div>
                         <div class="form-group">
@@ -145,6 +151,12 @@
                         <div class="form-group">
                             <label>Password</label>
                             <input type="password" id="transfer-password" placeholder="Confirm with password">
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="save-favorite" checked>
+                                <span>Save as favorite payee</span>
+                            </label>
                         </div>
                         <button onclick="initiateTransfer()">Transfer</button>
                     </div>
@@ -157,15 +169,23 @@
                         <p>Exchange between different currencies</p>
                     </div>
 
+                    <!-- Available Balances Display -->
+                    <div class="section balance-info">
+                        <h3>💰 Available Balances</h3>
+                        <div id="conversion-balances" class="conversion-balances"></div>
+                    </div>
+
                     <div class="section">
                         <div class="form-row">
                             <div class="form-group">
                                 <label>From Currency</label>
-                                <select id="from-currency"></select>
+                                <select id="from-currency" onchange="updateConversionBalances()"></select>
+                                <div id="from-balance-display" class="balance-display"></div>
                             </div>
                             <div class="form-group">
                                 <label>To Currency</label>
-                                <select id="to-currency"></select>
+                                <select id="to-currency" onchange="updateConversionBalances()"></select>
+                                <div id="to-balance-display" class="balance-display"></div>
                             </div>
                         </div>
                         <div class="form-group">
@@ -208,6 +228,10 @@
                     <div class="summary-item">
                         <span class="summary-label">Your New Balance:</span>
                         <span id="confirm-new-balance" class="summary-value"></span>
+                    </div>
+                    <div class="summary-item" id="save-favorite-summary" style="display: none;">
+                        <span class="summary-label">Save as Favorite:</span>
+                        <span id="confirm-save-favorite" class="summary-value"></span>
                     </div>
                     <p class="warning-text">⚠️ This transaction cannot be reversed once confirmed.</p>
                 </div>

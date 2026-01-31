@@ -361,6 +361,12 @@ button:active {
     box-shadow: var(--shadow);
 }
 
+.section h3 {
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
 /* Receiver Info */
 .receiver-info {
     margin-top: 10px;
@@ -709,6 +715,173 @@ button:active {
     }
 }
 
+/* Favorite Payees Section */
+.favorites-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.favorite-card {
+    background: var(--light-bg);
+    padding: 15px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: 2px solid transparent;
+}
+
+.favorite-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+    border-color: var(--primary-color);
+}
+
+.favorite-info {
+    flex: 1;
+}
+
+.favorite-name {
+    font-weight: 700;
+    color: var(--primary-color);
+    font-size: 16px;
+    margin-bottom: 5px;
+}
+
+.favorite-address {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'Courier New', monospace;
+}
+
+.favorite-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.favorite-select-btn, .favorite-delete-btn {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: auto;
+}
+
+.favorite-select-btn {
+    background: var(--primary-color);
+    color: var(--white);
+}
+
+.favorite-select-btn:hover {
+    background: #5568d3;
+}
+
+.favorite-delete-btn {
+    background: var(--danger-color);
+    color: var(--white);
+}
+
+.favorite-delete-btn:hover {
+    background: #c82333;
+}
+
+/* Checkbox Label */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+}
+
+/* Conversion Balances */
+.balance-info {
+    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+}
+
+.conversion-balances {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.balance-chip {
+    background: var(--white);
+    padding: 12px 15px;
+    border-radius: 8px;
+    text-align: center;
+    border: 2px solid var(--border-color);
+    transition: all 0.2s;
+}
+
+.balance-chip:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.balance-chip-currency {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 5px;
+}
+
+.balance-chip-amount {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+/* Balance Display under dropdowns */
+.balance-display {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--light-bg);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dark);
+    display: none;
+}
+
+.balance-display.show {
+    display: block;
+}
+
+.balance-display.insufficient {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.balance-display.available {
+    background: #d4edda;
+    color: #155724;
+}
+
+/* Empty state for favorites */
+.no-favorites {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 20px;
+    font-size: 14px;
+}
+
 /* Desktop Layout (Tablet and Up) */
 @media (min-width: 768px) {
     /* Hide mobile nav */
@@ -870,5 +1043,29 @@ button:active {
 
     .modal-content {
         margin: 0 10px;
+    }
+
+    .favorites-list {
+        grid-template-columns: 1fr;
+    }
+
+    .favorite-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .favorite-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .favorite-select-btn, .favorite-delete-btn {
+        flex: 1;
+    }
+
+    .conversion-balances {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 10px;
     }
 }

@@ -5,6 +5,7 @@ let lastTransactionCount = 0;
 let transactionCheckInterval = null;
 let allTransactions = [];
 let pendingTransferData = null;
+let currentPortfolio = {}; // Store portfolio data globally
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -40,6 +41,11 @@ function showPage(pageName) {
     } else if (pageName === 'overview') {
         loadPortfolio();
         loadRecentTransactions();
+    } else if (pageName === 'transfer') {
+        loadFavoritePayees();
+    } else if (pageName === 'convert') {
+        loadPortfolio(); // Load portfolio to show balances
+        updateConversionBalances();
     }
 }
 
@@ -204,12 +210,79 @@ function logout() {
     currentUser = null;
     lastTransactionCount = 0;
     allTransactions = [];
+    currentPortfolio = {};
     localStorage.removeItem('currentUser');
 
     document.getElementById('auth-section').style.display = 'block';
     document.getElementById('dashboard-section').classList.remove('active');
     showNotification('info', 'Logged Out', 'You have been logged out successfully');
     showTab('login');
+}
+
+// ========== FAVORITE PAYEES ==========
+
+function getFavoritePayees() {
+    const key = `favorites_${currentUser.username}`;
+    const favorites = localStorage.getItem(key);
+    return favorites ? JSON.parse(favorites) : [];
+}
+
+function saveFavoritePayee(username, address) {
+    const key = `favorites_${currentUser.username}`;
+    let favorites = getFavoritePayees();
+
+    // Check if already exists
+    const exists = favorites.some(fav => fav.address === address);
+    if (!exists) {
+        favorites.push({ username, address });
+        localStorage.setItem(key, JSON.stringify(favorites));
+        showNotification('success', '⭐ Saved', `${username} added to favorites`);
+    }
+}
+
+function deleteFavoritePayee(address) {
+    const key = `favorites_${currentUser.username}`;
+    let favorites = getFavoritePayees();
+    favorites = favorites.filter(fav => fav.address !== address);
+    localStorage.setItem(key, JSON.stringify(favorites));
+    loadFavoritePayees();
+    showNotification('info', 'Removed', 'Payee removed from favorites');
+}
+
+function selectFavoritePayee(username, address) {
+    document.getElementById('receiver-address').value = address;
+    fetchReceiverInfo();
+    document.getElementById('transfer-amount').focus();
+}
+
+function loadFavoritePayees() {
+    const favorites = getFavoritePayees();
+    const container = document.getElementById('favorites-list');
+    const section = document.getElementById('favorites-section');
+
+    if (favorites.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    container.innerHTML = '';
+
+    favorites.forEach(fav => {
+        const card = document.createElement('div');
+        card.className = 'favorite-card';
+        card.innerHTML = `
+            <div class="favorite-info">
+                <div class="favorite-name">@${fav.username}</div>
+                <div class="favorite-address">${fav.address.substring(0, 10)}...${fav.address.substring(fav.address.length - 6)}</div>
+            </div>
+            <div class="favorite-actions">
+                <button class="favorite-select-btn" onclick="selectFavoritePayee('${fav.username}', '${fav.address}')">Select</button>
+                <button class="favorite-delete-btn" onclick="deleteFavoritePayee('${fav.address}')">×</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
 }
 
 // ========== RECEIVER INFO LOOKUP ==========
@@ -261,6 +334,7 @@ async function initiateTransfer() {
     const receiverAddress = document.getElementById('receiver-address').value.trim();
     const amount = parseFloat(document.getElementById('transfer-amount').value);
     const password = document.getElementById('transfer-password').value;
+    const saveFavorite = document.getElementById('save-favorite').checked;
 
     if (!receiverAddress || !amount || amount <= 0 || !password) {
         showNotification('error', 'Validation Error', 'Please fill all fields correctly');
@@ -275,6 +349,9 @@ async function initiateTransfer() {
         if (recipientResponse.ok) {
             const recipientData = await recipientResponse.json();
             recipientUsername = recipientData.username;
+        } else {
+            showNotification('error', 'Invalid Address', 'Recipient wallet address not found');
+            return;
         }
 
         // Get current balance
@@ -295,13 +372,22 @@ async function initiateTransfer() {
             amount,
             password,
             recipientUsername,
-            newBalance
+            newBalance,
+            saveFavorite
         };
 
         // Show confirmation modal
         document.getElementById('confirm-recipient').textContent = `@${recipientUsername} (${receiverAddress.substring(0, 10)}...${receiverAddress.substring(receiverAddress.length - 6)})`;
         document.getElementById('confirm-amount').textContent = `${amount.toFixed(2)} LKRt`;
         document.getElementById('confirm-new-balance').textContent = `${newBalance.toFixed(2)} LKRt`;
+
+        // Show save favorite status
+        if (saveFavorite) {
+            document.getElementById('save-favorite-summary').style.display = 'flex';
+            document.getElementById('confirm-save-favorite').textContent = '✅ Yes';
+        } else {
+            document.getElementById('save-favorite-summary').style.display = 'none';
+        }
 
         document.getElementById('confirmation-modal').classList.add('show');
 
@@ -313,7 +399,7 @@ async function initiateTransfer() {
 async function confirmTransfer() {
     if (!pendingTransferData) return;
 
-    const { receiverAddress, amount, password, recipientUsername } = pendingTransferData;
+    const { receiverAddress, amount, password, recipientUsername, saveFavorite } = pendingTransferData;
 
     // Close modal
     closeConfirmationModal();
@@ -334,6 +420,11 @@ async function confirmTransfer() {
 
         if (response.ok) {
             showNotification('success', '✅ Transfer Successful', `Sent ${amount} LKRt to @${recipientUsername}`);
+
+            // Save to favorites if checked
+            if (saveFavorite) {
+                saveFavoritePayee(recipientUsername, receiverAddress);
+            }
 
             // Clear form
             document.getElementById('receiver-address').value = '';
@@ -370,7 +461,9 @@ async function loadPortfolio() {
         const data = await response.json();
 
         if (response.ok) {
-            displayPortfolio(data.portfolio);
+            currentPortfolio = data.portfolio;
+            displayPortfolio(currentPortfolio);
+            updateConversionBalances();
         }
     } catch (error) {
         console.error('Failed to load portfolio:', error);
@@ -379,6 +472,8 @@ async function loadPortfolio() {
 
 function displayPortfolio(portfolio) {
     const grid = document.getElementById('currency-grid');
+    if (!grid) return;
+
     grid.innerHTML = '';
 
     if (!portfolio || Object.keys(portfolio).length === 0) {
@@ -399,7 +494,7 @@ function displayPortfolio(portfolio) {
     }
 }
 
-// ========== CURRENCY CONVERSION ==========
+// ========== CURRENCY CONVERSION WITH BALANCE DISPLAY ==========
 
 async function loadSupportedCurrencies() {
     try {
@@ -429,13 +524,72 @@ function populateCurrencyDropdowns() {
     toSelect.selectedIndex = 1;
 }
 
+function updateConversionBalances() {
+    // Update the overview balance grid
+    const balancesContainer = document.getElementById('conversion-balances');
+    if (balancesContainer && currentPortfolio) {
+        balancesContainer.innerHTML = '';
+
+        if (Object.keys(currentPortfolio).length === 0) {
+            balancesContainer.innerHTML = '<p class="no-favorites">No currency balances available</p>';
+            return;
+        }
+
+        for (const [currency, balance] of Object.entries(currentPortfolio)) {
+            if (balance > 0) {
+                const chip = document.createElement('div');
+                chip.className = 'balance-chip';
+                chip.innerHTML = `
+                    <div class="balance-chip-currency">${currency}</div>
+                    <div class="balance-chip-amount">${balance.toFixed(2)}</div>
+                `;
+                balancesContainer.appendChild(chip);
+            }
+        }
+    }
+
+    // Update selected currency balances
+    const fromCurrency = document.getElementById('from-currency')?.value;
+    const toCurrency = document.getElementById('to-currency')?.value;
+
+    if (fromCurrency && currentPortfolio) {
+        const fromBalance = currentPortfolio[fromCurrency] || 0;
+        const fromDisplay = document.getElementById('from-balance-display');
+        if (fromDisplay) {
+            fromDisplay.textContent = `Available: ${fromBalance.toFixed(2)} ${fromCurrency}`;
+            fromDisplay.className = 'balance-display show available';
+        }
+    }
+
+    if (toCurrency && currentPortfolio) {
+        const toBalance = currentPortfolio[toCurrency] || 0;
+        const toDisplay = document.getElementById('to-balance-display');
+        if (toDisplay) {
+            toDisplay.textContent = `Current: ${toBalance.toFixed(2)} ${toCurrency}`;
+            toDisplay.className = 'balance-display show';
+        }
+    }
+}
+
 async function convertCurrency() {
     const fromCurrency = document.getElementById('from-currency').value;
     const toCurrency = document.getElementById('to-currency').value;
     const amount = parseFloat(document.getElementById('convert-amount').value);
 
-    if (!amount || amount <= 0 || fromCurrency === toCurrency) {
-        showNotification('error', 'Validation Error', 'Invalid amount or same currency');
+    if (!amount || amount <= 0) {
+        showNotification('error', 'Validation Error', 'Please enter a valid amount');
+        return;
+    }
+
+    if (fromCurrency === toCurrency) {
+        showNotification('error', 'Validation Error', 'Cannot convert currency to itself');
+        return;
+    }
+
+    // Check if sufficient balance
+    const availableBalance = currentPortfolio[fromCurrency] || 0;
+    if (availableBalance < amount) {
+        showNotification('error', 'Insufficient Balance', `You only have ${availableBalance.toFixed(2)} ${fromCurrency}`);
         return;
     }
 
@@ -455,7 +609,7 @@ async function convertCurrency() {
 
         if (response.ok) {
             showNotification('success', '✅ Conversion Successful', 
-                `Converted: ${data.amount_converted} ${data.from_currency}\nReceived: ${data.amount_received} ${data.to_currency}`);
+                `Converted: ${data.amount_converted} ${data.from_currency}\nReceived: ${data.amount_received.toFixed(2)} ${data.to_currency}`);
 
             document.getElementById('convert-amount').value = '';
             loadPortfolio();
