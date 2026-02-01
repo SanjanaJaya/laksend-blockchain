@@ -219,6 +219,49 @@ function logout() {
     showTab('login');
 }
 
+// ========== MINING ==========
+
+async function mineBlock() {
+    if (!currentUser || !currentUser.wallet_address) {
+        showNotification('error', 'Mining Error', 'Please login first');
+        return;
+    }
+    
+    const mineBtn = document.getElementById('mineButton');
+    
+    try {
+        // Show mining indicator
+        if (mineBtn) {
+            mineBtn.disabled = true;
+            mineBtn.textContent = '⛏️ Mining...';
+        }
+        
+        const response = await fetch(`${API_URL}/mine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ miner_address: currentUser.wallet_address })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showNotification('success', '💎 Block Mined!', `Reward: ${data.mining_reward} LKRt received.`);
+            loadPortfolio(); // Refresh balance display
+            loadRecentTransactions(); // Update history if necessary
+        } else {
+            showNotification('error', 'Mining Failed', data.detail || 'Could not mine block');
+        }
+    } catch (error) {
+        console.error('Mining error:', error);
+        showNotification('error', 'Connection Error', 'Mining server is unreachable');
+    } finally {
+        if (mineBtn) {
+            mineBtn.disabled = false;
+            mineBtn.textContent = 'Mine Block';
+        }
+    }
+}
+
 // ========== FAVORITE PAYEES ==========
 
 function getFavoritePayees() {
@@ -260,6 +303,8 @@ function loadFavoritePayees() {
     const container = document.getElementById('favorites-list');
     const section = document.getElementById('favorites-section');
 
+    if (!container || !section) return;
+
     if (favorites.length === 0) {
         section.style.display = 'none';
         return;
@@ -292,6 +337,8 @@ let receiverLookupTimeout = null;
 async function fetchReceiverInfo() {
     const receiverAddress = document.getElementById('receiver-address').value.trim();
     const receiverInfoDiv = document.getElementById('receiver-info');
+
+    if (!receiverInfoDiv) return;
 
     // Clear previous timeout
     if (receiverLookupTimeout) {
@@ -637,8 +684,8 @@ async function loadTransactionHistory() {
         lastTransactionCount = transactions.length;
 
         if (transactions.length === 0) {
-            document.getElementById('transaction-list').innerHTML = 
-                '<p class="no-transactions">No transactions yet</p>';
+            const container = document.getElementById('transaction-list');
+            if (container) container.innerHTML = '<p class="no-transactions">No transactions yet</p>';
             return;
         }
 
@@ -666,6 +713,7 @@ async function loadRecentTransactions() {
 
 async function processAndDisplayTransactions(transactions, containerId = 'transaction-list') {
     const container = document.getElementById(containerId);
+    if (!container) return;
 
     if (transactions.length === 0) {
         container.innerHTML = '<p class="no-transactions">No transactions yet</p>';
@@ -706,9 +754,9 @@ async function processAndDisplayTransactions(transactions, containerId = 'transa
         let txType, txClass, details;
 
         if (isSystem) {
-            txType = '🎁 Initial Balance';
+            txType = '🎁 System Reward';
             txClass = 'received';
-            details = 'System Credit';
+            details = 'Initial/Mining Credit';
         } else if (isReceived) {
             txType = '📥 Received';
             txClass = 'received';
@@ -823,20 +871,25 @@ async function checkForNewTransactions() {
 // ========== UTILITY FUNCTIONS ==========
 
 async function copyAddress() {
-    const address = document.getElementById('wallet-address').textContent;
+    const addressEl = document.getElementById('wallet-address');
+    if (!addressEl) return;
+    
+    const address = addressEl.textContent;
     const copyBtn = document.querySelector('.copy-btn');
 
     try {
         await navigator.clipboard.writeText(address);
-        const originalText = copyBtn.textContent;
-        copyBtn.textContent = '✓ Copied!';
-        copyBtn.classList.add('copied');
-        showNotification('success', 'Address Copied', 'Wallet address copied to clipboard');
+        if (copyBtn) {
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = '✓ Copied!';
+            copyBtn.classList.add('copied');
+            showNotification('success', 'Address Copied', 'Wallet address copied to clipboard');
 
-        setTimeout(() => {
-            copyBtn.textContent = originalText;
-            copyBtn.classList.remove('copied');
-        }, 2000);
+            setTimeout(() => {
+                copyBtn.textContent = originalText;
+                copyBtn.classList.remove('copied');
+            }, 2000);
+        }
     } catch (error) {
         showNotification('error', 'Copy Failed', 'Failed to copy address to clipboard');
     }
@@ -844,6 +897,8 @@ async function copyAddress() {
 
 function showNotification(type, title, message) {
     const container = document.getElementById('notification-container');
+    if (!container) return;
+
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
 
