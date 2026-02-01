@@ -31,18 +31,15 @@ SUPPORTED_CURRENCIES: List[str] = [
     "CAD", "CHF", "CNY", "INR", "SGD",
 ]
 
-
 # Pydantic models for request validation
 class SignupRequest(BaseModel):
     username: str
     password: str
     initial_balance: float = 1000.0
 
-
 class LoginRequest(BaseModel):
     username: str
     password: str
-
 
 class TransferRequest(BaseModel):
     sender_username: str
@@ -50,38 +47,47 @@ class TransferRequest(BaseModel):
     amount: float
     password: str
 
-
 class ConvertRequest(BaseModel):
     username: str
     from_currency: str
     to_currency: str
     amount: float
 
-
 class MineRequest(BaseModel):
     miner_address: str
-
 
 # API Endpoints
 @app.get("/")
 def read_root():
     return {
         "message": "LKRt Blockchain API with Proof of Work Mining",
-        "version": "2.1",
-        "features": ["PoW Mining", "Multi-Currency", "Smart Contracts"],
+        "version": "2.2",
+        "features": [
+            "PoW Mining",
+            "Multi-Currency",
+            "Smart Contracts",
+            "Encrypted Private Keys",
+        ],
         "endpoints": [
             "/signup", "/login", "/balance", "/transfer",
             "/convert", "/mine", "/mining/stats", "/blockchain",
         ],
     }
 
-
 @app.post("/signup")
 def signup(request: SignupRequest):
     """Create new user account with wallet and initial LKRt balance."""
     wallet = Wallet()
     password_hash = hashlib.sha256(request.password.encode()).hexdigest()
-    wallet_info = wallet.get_wallet_info()
+
+    # Encrypt private key before storing in DB
+    encrypted_private_key = wallet.encrypt_private_key(request.password)
+
+    wallet_info = {
+        "address": wallet.address,
+        "public_key": wallet.public_key,
+        "encrypted_private_key": encrypted_private_key,
+    }
 
     success = db.create_user(request.username, password_hash, wallet_info)
     if not success:
@@ -104,8 +110,8 @@ def signup(request: SignupRequest):
         "initial_balance": request.initial_balance,
         "private_key": wallet.private_key,
         "warning": "⚠️ Save your private key securely! It cannot be recovered if lost.",
+        "security_note": "🔒 Your private key is encrypted with your password in the database.",
     }
-
 
 @app.post("/login")
 def login(request: LoginRequest):
@@ -124,7 +130,20 @@ def login(request: LoginRequest):
             detail="Incorrect password",
         )
 
+    # Decrypt private key to ensure password is correct and key is usable
+    try:
+        _ = Wallet.decrypt_private_key(
+            user["private_key_encrypted"],
+            request.password,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to decrypt private key. Data may be corrupted.",
+        )
+
     balance = blockchain.get_balance(user["wallet_address"])
+
     return {
         "message": "Login successful",
         "username": request.username,
@@ -133,18 +152,17 @@ def login(request: LoginRequest):
         "balance": balance,
     }
 
-
 @app.get("/balance/{wallet_address}")
 def get_balance(wallet_address: str):
     """Get wallet balance by address."""
     balance = blockchain.get_balance(wallet_address)
     user = db.get_user_by_address(wallet_address)
+
     return {
         "wallet_address": wallet_address,
         "username": user["username"] if user else "Unknown",
         "balance_LKRt": balance,
     }
-
 
 @app.get("/user/{username}")
 def get_user_info(username: str):
@@ -157,6 +175,7 @@ def get_user_info(username: str):
         )
 
     balance = blockchain.get_balance(user["wallet_address"])
+
     return {
         "username": user["username"],
         "wallet_address": user["wallet_address"],
@@ -164,7 +183,6 @@ def get_user_info(username: str):
         "balance": balance,
         "created_at": user.get("created_at", "N/A"),
     }
-
 
 @app.post("/transfer")
 def transfer(request: TransferRequest):
@@ -185,7 +203,19 @@ def transfer(request: TransferRequest):
             detail="Incorrect password",
         )
 
-    # 3. Check sufficient balance
+    # 3. Decrypt private key using password
+    try:
+        decrypted_private_key = Wallet.decrypt_private_key(
+            sender["private_key_encrypted"],
+            request.password,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Failed to decrypt private key. Incorrect password.",
+        )
+
+    # 4. Check sufficient balance
     sender_balance = blockchain.get_balance(sender["wallet_address"])
     if sender_balance < request.amount:
         raise HTTPException(
@@ -193,7 +223,7 @@ def transfer(request: TransferRequest):
             detail=f"Insufficient balance. Available: {sender_balance} LKRt",
         )
 
-    # 4. Create transaction
+    # 5. Create transaction
     tx = Transaction(
         sender["wallet_address"],
         request.receiver_address,
@@ -201,13 +231,13 @@ def transfer(request: TransferRequest):
         sender["public_key"],
     )
 
-    # 5. Reconstruct wallet to sign transaction
+    # 6. Reconstruct wallet with decrypted private key
     wallet = Wallet()
-    wallet.private_key = sender["private_key"]
+    wallet.private_key = decrypted_private_key
     wallet.public_key = sender["public_key"]
     wallet.address = sender["wallet_address"]
 
-    # 6. Sign and verify
+    # 7. Sign and verify
     tx.sign_transaction(wallet)
     if not tx.is_valid():
         raise HTTPException(
@@ -215,7 +245,7 @@ def transfer(request: TransferRequest):
             detail="Invalid transaction signature",
         )
 
-    # 7. Add to pending pool
+    # 8. Add to pending pool
     success = blockchain.add_transaction(tx.to_dict())
     if not success:
         raise HTTPException(
@@ -223,7 +253,7 @@ def transfer(request: TransferRequest):
             detail="Transaction failed",
         )
 
-    # 8. Auto-mine this transaction (sender collects reward)
+    # 9. Auto-mine this transaction (sender collects reward)
     block = blockchain.mine_pending_transactions(
         mining_reward_address=sender["wallet_address"]
     )
@@ -236,7 +266,6 @@ def transfer(request: TransferRequest):
         "new_balance": blockchain.get_balance(sender["wallet_address"]),
         "receiver_balance": blockchain.get_balance(request.receiver_address),
     }
-
 
 @app.post("/mine")
 def mine_block(request: MineRequest):
@@ -266,7 +295,6 @@ def mine_block(request: MineRequest):
         "nonce": block.nonce,
     }
 
-
 @app.get("/mining/stats")
 def get_mining_stats():
     """Get current mining difficulty and statistics."""
@@ -280,12 +308,10 @@ def get_mining_stats():
         "estimated_mining_time": f"~{2 ** stats['difficulty'] / 1000:.1f}s",
     }
 
-
 @app.get("/currencies")
 def get_supported_currencies():
     """Get list of supported currencies for conversion."""
     return {"currencies": SUPPORTED_CURRENCIES, "base_currency": "LKRt"}
-
 
 @app.get("/portfolio/{username}")
 def get_user_portfolio(username: str):
@@ -299,8 +325,8 @@ def get_user_portfolio(username: str):
 
     wallet_address = user["wallet_address"]
     lkr_balance = blockchain.get_balance(wallet_address)
-
     portfolio = {"LKRt": lkr_balance}
+
     for currency in SUPPORTED_CURRENCIES:
         fx_key = f"FXT_{currency}_{wallet_address}"
         fx_balance = blockchain.balances.get(fx_key, 0)
@@ -313,7 +339,6 @@ def get_user_portfolio(username: str):
         "portfolio": portfolio,
         "total_currencies": len([v for v in portfolio.values() if v > 0]),
     }
-
 
 @app.post("/convert")
 def convert_currency(request: ConvertRequest):
@@ -365,13 +390,11 @@ def convert_currency(request: ConvertRequest):
             "to_balance": result["to_balance"],
             "timestamp": result["timestamp"],
         }
-
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-
 
 @app.get("/blockchain")
 def get_blockchain():
@@ -384,18 +407,17 @@ def get_blockchain():
         "difficulty": blockchain.difficulty,
     }
 
-
 @app.get("/blockchain/latest")
 def get_latest_block():
     """Get the latest mined block."""
     latest = blockchain.get_latest_block()
     return latest.to_dict()
 
-
 @app.get("/transactions/{wallet_address}")
 def get_transactions(wallet_address: str):
     """Get all transactions for a specific wallet address."""
     transactions: list[dict] = []
+
     for block in blockchain.chain:
         for tx in block.transactions:
             if tx.get("sender") == wallet_address or tx.get("receiver") == wallet_address:
@@ -414,7 +436,6 @@ def get_transactions(wallet_address: str):
         "transactions": transactions,
     }
 
-
 @app.get("/health")
 def health_check():
     """Health check endpoint for monitoring."""
@@ -425,10 +446,9 @@ def health_check():
         "database_connected": db.client is not None,
         "mining_difficulty": blockchain.difficulty,
         "pow_enabled": True,
+        "encryption_enabled": True,
     }
-
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
