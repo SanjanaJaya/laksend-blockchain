@@ -1,8 +1,11 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 import hashlib
 from typing import List
+import random
+import smtplib
+from email.mime.text import MIMEText
 
 from blockchain import Blockchain
 from wallet import Wallet
@@ -31,15 +34,56 @@ SUPPORTED_CURRENCIES: List[str] = [
     "CAD", "CHF", "CNY", "INR", "SGD",
 ]
 
-# Pydantic models for request validation
+# ================= EMAIL / OTP CONFIG =================
+
+SMTP_HOST = "smtp.gmail.com"          # change if not using Gmail
+SMTP_PORT = 587
+APP_EMAIL = "laksend.lk@gmail.com"        # TODO: put your app email
+APP_EMAIL_PASSWORD = "zami qdsh wvvy chyj"  # TODO: app password (not normal login)
+
+
+def send_otp_email(to_email: str, username: str, otp_code: str):
+    subject = "Your LKRt Wallet OTP Verification Code"
+    body = (
+        f"Hi {username},\n\n"
+        f"Your OTP code is: {otp_code}\n"
+        "It is valid for this signup session.\n\n"
+        "If you did not request this, please ignore this email.\n\n"
+        "LKRt Wallet Team"
+    )
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = APP_EMAIL
+    msg["To"] = to_email
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(APP_EMAIL, APP_EMAIL_PASSWORD)
+            server.send_message(msg)
+    except Exception as e:
+        print(f"Failed to send OTP email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send OTP email",
+        )
+
+# ================= REQUEST MODELS =================
+
 class SignupRequest(BaseModel):
     username: str
+    email: EmailStr
     password: str
     initial_balance: float = 1000.0
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+class VerifyOtpRequest(BaseModel):
+    username: str
+    otp_code: str
 
 class TransferRequest(BaseModel):
     sender_username: str
@@ -56,7 +100,8 @@ class ConvertRequest(BaseModel):
 class MineRequest(BaseModel):
     miner_address: str
 
-# API Endpoints
+# ================= API ENDPOINTS =================
+
 @app.get("/")
 def read_root():
     return {
@@ -67,16 +112,17 @@ def read_root():
             "Multi-Currency",
             "Smart Contracts",
             "Encrypted Private Keys",
+            "Email OTP Verification",
         ],
         "endpoints": [
-            "/signup", "/login", "/balance", "/transfer",
+            "/signup", "/verify-otp", "/login", "/balance", "/transfer",
             "/convert", "/mine", "/mining/stats", "/blockchain",
         ],
     }
 
 @app.post("/signup")
 def signup(request: SignupRequest):
-    """Create new user account with wallet and initial LKRt balance."""
+    """Create new user account with wallet and initial LKRt balance, send OTP to email."""
     wallet = Wallet()
     password_hash = hashlib.sha256(request.password.encode()).hexdigest()
 
@@ -89,12 +135,25 @@ def signup(request: SignupRequest):
         "encrypted_private_key": encrypted_private_key,
     }
 
-    success = db.create_user(request.username, password_hash, wallet_info)
+    # Generate 6-digit OTP
+    otp_code = f"{random.randint(100000, 999999)}"
+
+    # Create user in DB (unverified + OTP)
+    success = db.create_user(
+        request.username,
+        request.email,
+        password_hash,
+        wallet_info,
+        otp_code,
+    )
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists",
+            detail="Username already exists or database error",
         )
+
+    # Send OTP email
+    send_otp_email(request.email, request.username, otp_code)
 
     # Initial SYSTEM → user mint as a transaction, then auto-mine it
     initial_tx = Transaction("SYSTEM", wallet.address, request.initial_balance)
@@ -103,7 +162,7 @@ def signup(request: SignupRequest):
     blockchain.mine_pending_transactions()  # no reward, only SYSTEM tx in pool
 
     return {
-        "message": "Account created successfully",
+        "message": "Account created. OTP sent to your email. Please verify to activate login.",
         "username": request.username,
         "wallet_address": wallet.address,
         "public_key": wallet.public_key,
@@ -113,6 +172,17 @@ def signup(request: SignupRequest):
         "security_note": "🔒 Your private key is encrypted with your password in the database.",
     }
 
+@app.post("/verify-otp")
+def verify_otp(request: VerifyOtpRequest):
+    """Verify OTP code for a user and activate account."""
+    success, msg = db.verify_user_otp(request.username, request.otp_code)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=msg,
+        )
+    return {"message": msg, "username": request.username}
+
 @app.post("/login")
 def login(request: LoginRequest):
     """User login - verifies credentials and returns wallet info."""
@@ -121,6 +191,12 @@ def login(request: LoginRequest):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
+        )
+
+    if not user.get("is_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account not verified. Please check your email for OTP.",
         )
 
     password_hash = hashlib.sha256(request.password.encode()).hexdigest()

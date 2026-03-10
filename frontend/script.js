@@ -6,6 +6,7 @@ let transactionCheckInterval = null;
 let allTransactions = [];
 let pendingTransferData = null;
 let currentPortfolio = {}; // Store portfolio data globally
+let pendingSignupUser = null;  // store username for OTP verification
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,15 +53,24 @@ function showPage(pageName) {
 // ========== AUTH TAB SWITCHING ==========
 
 function showTab(tabName) {
+    // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
     });
+
+    // Remove active from all buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
     });
 
-    document.getElementById(`${tabName}-tab`).classList.add('active');
-    event.target.classList.add('active');
+    // Activate the tab content
+    const tabEl = document.getElementById(`${tabName}-tab`);
+    if (tabEl) tabEl.classList.add('active');
+
+    // Activate the matching button without relying on event.target
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`)
+              || document.querySelector(`.tab-btn[data-page="${tabName}"]`);
+    if (btn) btn.classList.add('active');
 }
 
 // ========== SESSION MANAGEMENT ==========
@@ -113,10 +123,11 @@ async function verifyAndRestoreSession(username) {
 
 async function signup() {
     const username = document.getElementById('signup-username').value;
+    const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
     const initialBalance = parseFloat(document.getElementById('initial-balance').value);
 
-    if (!username || !password) {
+    if (!username || !email || !password) {
         showNotification('error', 'Validation Error', 'Please fill all fields');
         return;
     }
@@ -127,6 +138,7 @@ async function signup() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 username: username,
+                email: email,
                 password: password,
                 initial_balance: initialBalance
             })
@@ -135,28 +147,62 @@ async function signup() {
         const data = await response.json();
 
         if (response.ok) {
-            showNotification('success', '✅ Account Created', `Welcome ${username}! Your wallet is ready.`);
+            showNotification('info', 'OTP Sent', 'Account created. Check your email for OTP to verify.');
+            pendingSignupUser = username;
 
-            currentUser = {
-                username: data.username,
-                wallet_address: data.wallet_address,
-                password: password
-            };
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-            document.getElementById('auth-section').style.display = 'none';
-            document.getElementById('dashboard-section').classList.add('active');
-            document.getElementById('username-display').textContent = data.username;
-            document.getElementById('wallet-address').textContent = data.wallet_address;
-
-            loadPortfolio();
-            startTransactionMonitoring();
-            showPage('overview');
+            // Show OTP section for verification
+            const otpSection = document.getElementById('otp-section');
+            if (otpSection) otpSection.style.display = 'block';
         } else {
-            showNotification('error', 'Signup Failed', data.detail);
+            showNotification('error', 'Signup Failed', data.detail || 'Could not create account');
         }
     } catch (error) {
+        console.error(error);
         showNotification('error', 'Connection Error', 'Could not connect to server');
+    }
+}
+
+async function verifySignupOtp() {
+    const otpInput = document.getElementById('signup-otp');
+    const otpCode = otpInput ? otpInput.value.trim() : '';
+
+    if (!pendingSignupUser) {
+        showNotification('error', 'Verification Error', 'No signup in progress');
+        return;
+    }
+
+    if (!otpCode) {
+        showNotification('error', 'Validation Error', 'Please enter the OTP');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/verify-otp`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                username: pendingSignupUser,
+                otp_code: otpCode
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showNotification('success', 'Verified', 'Your email has been verified. You can now log in.');
+
+            // Hide OTP section and switch to login tab
+            const otpSection = document.getElementById('otp-section');
+            if (otpSection) otpSection.style.display = 'none';
+            pendingSignupUser = null;
+
+            showTab('login');
+        } else {
+            showNotification('error', 'Verification Failed', data.detail || 'Invalid OTP');
+        }
+    } catch (error) {
+        console.error(error);
+        showNotification('error', 'Connection Error', 'Could not verify OTP');
     }
 }
 
@@ -198,9 +244,10 @@ async function login() {
             startTransactionMonitoring();
             showPage('overview');
         } else {
-            showNotification('error', 'Login Failed', data.detail);
+            showNotification('error', 'Login Failed', data.detail || 'Could not log in');
         }
     } catch (error) {
+        console.error(error);
         showNotification('error', 'Connection Error', 'Could not connect to server');
     }
 }
