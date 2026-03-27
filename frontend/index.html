@@ -1,268 +1,374 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LKRt Blockchain Wallet</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>LKRt Wallet Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div class="container">
-        <!-- Authentication Section -->
-        <div id="auth-section">
-            <h1>🔐 LKRt Blockchain Wallet</h1>
+  <div id="app-root">
+    <!-- ================= AUTH SECTION ================= -->
+    <section id="auth-section" class="auth-section active">
+      <div class="auth-container">
+        <div class="auth-header">
+          <h1>LKRt Wallet</h1>
+          <p>Secure blockchain wallet with instant transfers and FX.</p>
+        </div>
 
-            <div class="tabs">
-                <button class="tab-btn active" onclick="showTab('login')">Login</button>
-                <button class="tab-btn" onclick="showTab('signup')">Sign Up</button>
+        <div class="auth-body">
+          <div class="tab-header">
+            <button class="tab-btn active" data-tab="login" onclick="showTab('login')">
+              Login
+            </button>
+            <button class="tab-btn" data-tab="signup" onclick="showTab('signup')">
+              Sign up
+            </button>
+          </div>
+
+          <!-- LOGIN TAB -->
+          <div id="login-tab" class="tab-content active">
+            <div class="auth-card">
+              <div class="form-group">
+                <label for="login-username">Username</label>
+                <input type="text" id="login-username" placeholder="Your username" />
+              </div>
+              <div class="form-group">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="Your password" />
+              </div>
+              <button class="primary-btn" onclick="login()">Login</button>
             </div>
+          </div>
 
-            <!-- Login Form -->
-            <div id="login-tab" class="tab-content active">
+          <!-- SIGNUP TAB -->
+          <div id="signup-tab" class="tab-content">
+            <div class="auth-card">
+              <div class="form-row">
                 <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" id="login-username" placeholder="Enter username">
+                  <label for="signup-first-name">First name</label>
+                  <input type="text" id="signup-first-name" placeholder="John" />
                 </div>
                 <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="login-password" placeholder="Enter password">
+                  <label for="signup-last-name">Last name</label>
+                  <input type="text" id="signup-last-name" placeholder="Doe" />
                 </div>
-                <button onclick="login()">Login</button>
+              </div>
+
+              <div class="form-group">
+                <label for="signup-nic">NIC number</label>
+                <input type="text" id="signup-nic" placeholder="NIC number" />
+              </div>
+
+              <div class="form-group">
+                <label for="signup-address">Address</label>
+                <input type="text" id="signup-address" placeholder="Street, City" />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="signup-postal-code">Postal code</label>
+                  <input type="text" id="signup-postal-code" placeholder="Postal code" />
+                </div>
+                <div class="form-group">
+                  <label for="signup-username">Username</label>
+                  <input type="text" id="signup-username" placeholder="Choose a username" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="signup-email">Email</label>
+                <input type="email" id="signup-email" placeholder="you@example.com" />
+              </div>
+
+              <div class="form-group">
+                <label for="signup-password">Password</label>
+                <input type="password" id="signup-password" placeholder="Enter a strong password" />
+              </div>
+
+              <div class="form-group">
+                <label for="initial-balance">Initial LKRt balance</label>
+                <input type="number" id="initial-balance" value="1000" min="0" step="0.01" />
+              </div>
+
+              <button class="primary-btn" onclick="signup()">Sign up</button>
+
+              <div id="otp-section" style="display:none;">
+                <p>We have sent an OTP code to your email. Enter it below to verify your account.</p>
+                <input type="text" id="signup-otp" placeholder="Enter OTP code" />
+                <button class="primary-btn" onclick="verifySignupOtp()">Verify OTP</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= DASHBOARD SECTION ================= -->
+    <section id="dashboard-section" class="dashboard-section">
+      <!-- Top bar -->
+      <header class="topbar">
+        <div class="topbar-content">
+          <div class="topbar-left">
+            <h1>Welcome, <span id="user-fullname-display"></span></h1>
+            <small>
+              @<span id="username-display"></span> ·
+              <span class="wallet-inline">
+                Wallet:
+                <span id="wallet-address"></span>
+                <button class="link-btn" onclick="copyWalletAddress()">Copy</button>
+              </span>
+            </small>
+          </div>
+          <div class="topbar-right">
+            <button class="secondary-btn" onclick="logout()">Logout</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+          <div class="sidebar-title">Menu</div>
+          <button class="sidebar-item active" data-page="overview" onclick="showPage('overview')">
+            Overview
+          </button>
+          <button class="sidebar-item" data-page="profile" onclick="showPage('profile')">
+            Profile
+          </button>
+          <button class="sidebar-item" data-page="transfer" onclick="showPage('transfer')">
+            Transfer
+          </button>
+          <button class="sidebar-item" data-page="convert" onclick="showPage('convert')">
+            Convert
+          </button>
+          <button class="sidebar-item" data-page="transactions" onclick="showPage('transactions')">
+            Transactions
+          </button>
+        </nav>
+
+        <!-- Main content -->
+        <main class="content">
+          <!-- OVERVIEW PAGE -->
+          <section id="overview-page" class="page-content active">
+            <div class="page-grid">
+              <div class="page-card">
+                <h2>Portfolio</h2>
+                <div id="portfolio-balances">
+                  <!-- Filled by JS -->
+                </div>
+              </div>
+
+              <div class="page-card">
+                <h2>Recent transactions</h2>
+                <div id="recent-transaction-list">
+                  <!-- Filled by JS -->
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- PROFILE PAGE -->
+          <section id="profile-page" class="page-content">
+            <!-- Mobile-only wallet copy card -->
+            <div class="page-card mobile-wallet-card">
+              <h2>Your Wallet</h2>
+              <div class="mobile-wallet-row">
+                <span class="mobile-wallet-address" id="mobile-wallet-address"></span>
+                <button class="copy-wallet-btn" onclick="copyWalletAddress()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Copy address
+                </button>
+              </div>
             </div>
 
-            <!-- Signup Form -->
-            <div id="signup-tab" class="tab-content">
-                <div class="auth-form">
-                    <h2>Create Account</h2>
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" id="signup-username" placeholder="Choose a username">
-                    </div>
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="signup-email" placeholder="Your email address">
-                    </div>
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="signup-password" placeholder="Create a password">
-                    </div>
-                    <div class="form-group">
-                        <label>Initial Balance (LKRt)</label>
-                        <input type="number" id="initial-balance" value="1000" min="0">
-                    </div>
-                    <button onclick="signup()">Create Account</button>
+            <div class="page-card">
+              <h2>Your Profile</h2>
+              <section id="profile-section">
+                <div class="profile-grid">
+                  <div class="profile-item">
+                    <span class="label">Full name</span>
+                    <span class="value" id="profile-full-name"></span>
+                  </div>
+                  <div class="profile-item">
+                    <span class="label">Username</span>
+                    <span class="value" id="profile-username"></span>
+                  </div>
+                  <div class="profile-item">
+                    <span class="label">Email</span>
+                    <span class="value" id="profile-email"></span>
+                  </div>
+                  <div class="profile-item">
+                    <span class="label">NIC</span>
+                    <span class="value" id="profile-nic"></span>
+                  </div>
+                  <div class="profile-item">
+                    <span class="label">Address</span>
+                    <span class="value" id="profile-address"></span>
+                  </div>
+                  <div class="profile-item">
+                    <span class="label">Postal code</span>
+                    <span class="value" id="profile-postal-code"></span>
+                  </div>
+                  <div class="profile-item">
+                    <span class="label">Wallet address</span>
+                    <span class="value" id="profile-wallet-address"></span>
+                  </div>
+                  <div class="profile-item">
+                    <span class="label">Joined</span>
+                    <span class="value" id="profile-created-at"></span>
+                  </div>
                 </div>
-
-                <div class="auth-form" id="otp-section" style="margin-top: 16px; display: none;">
-                    <h3>Email Verification</h3>
-                    <p>We have sent an OTP code to your email. Enter it below to verify your account.</p>
-                    <div class="form-group">
-                        <label>OTP Code</label>
-                        <input type="text" id="signup-otp" placeholder="6-digit OTP" maxlength="6">
-                    </div>
-                    <button onclick="verifySignupOtp()">Verify OTP</button>
-                </div>
+              </section>
             </div>
-        </div>
+          </section>
 
-        <!-- Dashboard Section -->
-        <div id="dashboard-section">
-            <!-- Mobile Navigation -->
-            <nav class="mobile-nav">
-                <button class="nav-item" onclick="showPage('overview')" data-page="overview">
-                    <span class="nav-icon">🏠</span>
-                    <span class="nav-label">Home</span>
-                </button>
-                <button class="nav-item" onclick="showPage('transfer')" data-page="transfer">
-                    <span class="nav-icon">💸</span>
-                    <span class="nav-label">Transfer</span>
-                </button>
-                <button class="nav-item" onclick="showPage('convert')" data-page="convert">
-                    <span class="nav-icon">🔄</span>
-                    <span class="nav-label">Convert</span>
-                </button>
-                <button class="nav-item" onclick="showPage('transactions')" data-page="transactions">
-                    <span class="nav-icon">📜</span>
-                    <span class="nav-label">History</span>
-                </button>
-            </nav>
+          <!-- TRANSFER PAGE -->
+          <section id="transfer-page" class="page-content">
+            <div class="page-card">
+              <h2>Transfer LKRt</h2>
+              <p class="muted">⚠️ This transaction cannot be reversed once confirmed.</p>
 
-            <!-- Desktop Sidebar -->
-            <aside class="desktop-sidebar">
-                <div class="sidebar-header">
-                    <h2>💰 LKRt Wallet</h2>
-                </div>
-                <nav class="sidebar-nav">
-                    <button class="sidebar-item active" onclick="showPage('overview')" data-page="overview">
-                        <span class="nav-icon">🏠</span> Overview
-                    </button>
-                    <button class="sidebar-item" onclick="showPage('transfer')" data-page="transfer">
-                        <span class="nav-icon">💸</span> Transfer
-                    </button>
-                    <button class="sidebar-item" onclick="showPage('convert')" data-page="convert">
-                        <span class="nav-icon">🔄</span> Convert
-                    </button>
-                    <button class="sidebar-item" onclick="showPage('transactions')" data-page="transactions">
-                        <span class="nav-icon">📜</span> Transactions
-                    </button>
-                </nav>
-                <button class="logout-btn" onclick="logout()">Logout</button>
-            </aside>
+              <div class="form-group">
+                <label for="receiver-address">Receiver wallet address</label>
+                <input
+                  type="text"
+                  id="receiver-address"
+                  placeholder="Paste the recipient wallet address"
+                  onblur="fetchReceiverInfo()"
+                />
+              </div>
 
-            <!-- Main Content Area -->
-            <main class="dashboard-content">
-                <!-- Overview Page -->
-                <div id="overview-page" class="page-content active">
-                    <div class="page-header">
-                        <h1>Welcome Back!</h1>
-                        <p class="username-display">@<span id="username-display"></span></p>
-                    </div>
+              <div id="receiver-info" class="receiver-info">
+                <!-- Filled by JS -->
+              </div>
 
-                    <div class="user-info">
-                        <div class="info-row">
-                            <span class="info-label">Wallet Address</span>
-                            <div class="wallet-address-container">
-                                <span id="wallet-address" class="wallet-address-text"></span>
-                                <button class="copy-btn" onclick="copyAddress()">Copy</button>
-                            </div>
-                        </div>
-                    </div>
+              <div class="form-group">
+                <label for="transfer-amount">Amount (LKRt)</label>
+                <input type="number" id="transfer-amount" min="0" step="0.01" />
+              </div>
 
-                    <div class="currency-portfolio">
-                        <h3>💼 Portfolio</h3>
-                        <div id="currency-grid" class="currency-grid"></div>
-                    </div>
+              <div class="form-group">
+                <label for="transfer-password">Your password</label>
+                <input type="password" id="transfer-password" placeholder="Confirm with your wallet password" />
+              </div>
 
-                    <div class="recent-transactions">
-                        <h3>📊 Recent Transactions</h3>
-                        <div id="recent-transaction-list"></div>
-                        <button class="see-all-btn" onclick="showPage('transactions')">See All Transactions</button>
-                    </div>
+              <button class="primary-btn" onclick="prepareTransfer()">Continue</button>
 
-                    <button class="mobile-logout-btn" onclick="logout()">Logout</button>
-                </div>
-
-                <!-- Transfer Page -->
-                <div id="transfer-page" class="page-content">
-                    <div class="page-header">
-                        <h1>💸 Send LKRt</h1>
-                        <p>Transfer funds to another wallet</p>
-                    </div>
-
-                    <!-- Favorite Payees Section -->
-                    <div class="section" id="favorites-section" style="display: none;">
-                        <h3>⭐ Favorite Payees</h3>
-                        <div id="favorites-list" class="favorites-list"></div>
-                    </div>
-
-                    <div class="section">
-                        <div class="form-group">
-                            <label>Receiver's Wallet Address or Username</label>
-                            <input type="text" id="receiver-address" placeholder="Enter wallet address or @username" oninput="fetchReceiverInfo()">
-                            <div id="receiver-info" class="receiver-info"></div>
-                        </div>
-                        <div class="form-group">
-                            <label>Amount (LKRt)</label>
-                            <input type="number" id="transfer-amount" placeholder="0.00" min="0" step="0.01">
-                        </div>
-                        <div class="form-group">
-                            <label>Password</label>
-                            <input type="password" id="transfer-password" placeholder="Confirm with password">
-                        </div>
-                        <div class="form-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="save-favorite" checked>
-                                <span>Save as favorite payee</span>
-                            </label>
-                        </div>
-                        <button onclick="initiateTransfer()">Transfer</button>
-                    </div>
-                </div>
-
-                <!-- Convert Page -->
-                <div id="convert-page" class="page-content">
-                    <div class="page-header">
-                        <h1>🔄 Convert Currency</h1>
-                        <p>Exchange between different currencies</p>
-                    </div>
-
-                    <!-- Available Balances Display -->
-                    <div class="section balance-info">
-                        <h3>💰 Available Balances</h3>
-                        <div id="conversion-balances" class="conversion-balances"></div>
-                    </div>
-
-                    <div class="section">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>From Currency</label>
-                                <select id="from-currency" onchange="updateConversionBalances()"></select>
-                                <div id="from-balance-display" class="balance-display"></div>
-                            </div>
-                            <div class="form-group">
-                                <label>To Currency</label>
-                                <select id="to-currency" onchange="updateConversionBalances()"></select>
-                                <div id="to-balance-display" class="balance-display"></div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Amount</label>
-                            <input type="number" id="convert-amount" placeholder="0.00" min="0" step="0.01">
-                        </div>
-                        <button onclick="convertCurrency()">Convert</button>
-                    </div>
-                </div>
-
-                <!-- Transactions Page -->
-                <div id="transactions-page" class="page-content">
-                    <div class="page-header">
-                        <h1>📜 Transaction History</h1>
-                        <p>All your transactions</p>
-                    </div>
-
-                    <div class="transaction-history">
-                        <div id="transaction-list"></div>
-                    </div>
-                </div>
-            </main>
-        </div>
-
-        <!-- Transaction Confirmation Modal -->
-        <div id="confirmation-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>⚠️ Confirm Transaction</h2>
-                </div>
-                <div class="modal-body">
-                    <div class="summary-item">
-                        <span class="summary-label">Recipient:</span>
-                        <span id="confirm-recipient" class="summary-value"></span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-label">Amount:</span>
-                        <span id="confirm-amount" class="summary-value"></span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-label">Your New Balance:</span>
-                        <span id="confirm-new-balance" class="summary-value"></span>
-                    </div>
-                    <div class="summary-item" id="save-favorite-summary" style="display: none;">
-                        <span class="summary-label">Save as Favorite:</span>
-                        <span id="confirm-save-favorite" class="summary-value"></span>
-                    </div>
-                    <p class="warning-text">⚠️ This transaction cannot be reversed once confirmed.</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-cancel" onclick="closeConfirmationModal()">Cancel</button>
-                    <button class="btn-confirm" onclick="confirmTransfer()">Confirm Transfer</button>
-                </div>
+              <div id="transfer-confirmation" class="transfer-confirmation" style="display:none;">
+                <h3>Confirm transfer</h3>
+                <p id="transfer-summary"></p>
+                <button class="primary-btn" onclick="confirmTransfer()">Confirm</button>
+                <button class="secondary-btn" onclick="cancelTransfer()">Cancel</button>
+              </div>
             </div>
+
+            <div id="favorites-section" class="page-card" style="display:none;">
+              <h2>Favorite payees</h2>
+              <div id="favorites-list" class="favorites-list">
+                <!-- filled by JS -->
+              </div>
+            </div>
+          </section>
+
+          <!-- CONVERT PAGE -->
+          <section id="convert-page" class="page-content">
+            <div class="page-card">
+              <h2>Currency conversion</h2>
+
+              <div class="convert-grid">
+                <div class="form-group">
+                  <label for="from-currency">From</label>
+                  <select id="from-currency" onchange="updateConversionBalances()">
+                    <!-- filled by JS -->
+                  </select>
+                  <small id="from-currency-balance" class="muted"></small>
+                </div>
+
+                <div class="form-group">
+                  <label for="to-currency">To</label>
+                  <select id="to-currency" onchange="updateConversionBalances()">
+                    <!-- filled by JS -->
+                  </select>
+                  <small id="to-currency-balance" class="muted"></small>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="convert-amount">Amount</label>
+                <input type="number" id="convert-amount" min="0" step="0.01" />
+              </div>
+
+              <button class="primary-btn" onclick="convertCurrency()">Convert</button>
+
+              <div id="convert-result">
+                <!-- filled by JS -->
+              </div>
+            </div>
+
+            <div class="page-card">
+              <h2>FX balances</h2>
+              <div id="fx-balances">
+                <!-- filled by JS -->
+              </div>
+            </div>
+          </section>
+
+          <!-- TRANSACTIONS PAGE -->
+          <section id="transactions-page" class="page-content">
+            <div class="page-card">
+              <h2>All transactions</h2>
+              <div id="transaction-list">
+                <!-- Filled by JS -->
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <!-- ================= MOBILE NAV ================= -->
+      <nav class="mobile-nav">
+        <div class="mobile-nav-inner">
+          <button class="nav-item active" data-page="overview" onclick="showPage('overview')">
+            <div class="nav-icon-wrap"><span class="nav-icon">🏠</span></div>
+            Home
+          </button>
+          <button class="nav-item" data-page="transfer" onclick="showPage('transfer')">
+            <div class="nav-icon-wrap"><span class="nav-icon">💸</span></div>
+            Transfer
+          </button>
+          <button class="nav-item" data-page="convert" onclick="showPage('convert')">
+            <div class="nav-icon-wrap"><span class="nav-icon">🔄</span></div>
+            Convert
+          </button>
+          <button class="nav-item" data-page="transactions" onclick="showPage('transactions')">
+            <div class="nav-icon-wrap"><span class="nav-icon">📋</span></div>
+            History
+          </button>
+          <button class="nav-item" data-page="profile" onclick="showPage('profile')">
+            <div class="nav-icon-wrap"><span class="nav-icon">👤</span></div>
+            Profile
+          </button>
         </div>
-    </div>
+      </nav>
 
-    <!-- Notification Container -->
-    <div id="notification-container" class="notification-container"></div>
+    </section>
+  </div>
 
-    <script src="script.js"></script>
-</body>
+  <!-- Notifications -->
+  <div id="notification-container" class="notification-container"></div>
+
+  <script src="script.js"></script>
+  <script>
+    // Mirror the wallet address into the mobile profile card whenever it changes.
+    // This works regardless of how script.js sets #wallet-address.
+    (function () {
+      const source = document.getElementById('wallet-address');
+      const target = document.getElementById('mobile-wallet-address');
+      if (!source || !target) return;
+      const sync = () => { target.textContent = source.textContent; };
+      sync();
+      new MutationObserver(sync).observe(source, { childList: true, characterData: true, subtree: true });
+    })();
+  </script>
 </html>

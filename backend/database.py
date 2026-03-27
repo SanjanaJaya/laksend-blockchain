@@ -12,9 +12,21 @@ class Database:
     def __init__(self):
         self.client = supabase
 
-    def create_user(self, username, email, password_hash, wallet_info, otp_code):
+    def create_user(
+        self,
+        username,
+        email,
+        password_hash,
+        wallet_info,
+        otp_code,
+        first_name,
+        last_name,
+        nic,
+        address,
+        postal_code,
+    ):
         """
-        Create new user - stores authentication, wallet keys, and email.
+        Create new user - stores authentication, wallet keys, email and profile info.
         Balance is NOT stored here - it lives on the blockchain only.
         """
         data = {
@@ -26,6 +38,11 @@ class Database:
             "private_key_encrypted": wallet_info["encrypted_private_key"],
             "otp_code": otp_code,
             "is_verified": False,
+            "first_name": first_name,
+            "last_name": last_name,
+            "nic": nic,
+            "address": address,
+            "postal_code": postal_code,
         }
 
         try:
@@ -52,6 +69,11 @@ class Database:
                     "otp_code": user.get("otp_code"),
                     "is_verified": user.get("is_verified", False),
                     "created_at": user.get("created_at", "N/A"),
+                    "first_name": user.get("first_name"),
+                    "last_name": user.get("last_name"),
+                    "nic": user.get("nic"),
+                    "address": user.get("address"),
+                    "postal_code": user.get("postal_code"),
                 }
             return None
         except Exception as e:
@@ -69,6 +91,8 @@ class Database:
                     "username": user["username"],
                     "wallet_address": user["wallet_address"],
                     "public_key": user["public_key"],
+                    "first_name": user.get("first_name"),
+                    "last_name": user.get("last_name"),
                 }
             return None
         except Exception as e:

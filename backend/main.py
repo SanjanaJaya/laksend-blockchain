@@ -36,16 +36,16 @@ SUPPORTED_CURRENCIES: List[str] = [
 
 # ================= EMAIL / OTP CONFIG =================
 
-SMTP_HOST = "smtp.gmail.com"          # change if not using Gmail
+SMTP_HOST = "smtp.gmail.com"  # change if not using Gmail
 SMTP_PORT = 587
-APP_EMAIL = "laksend.lk@gmail.com"        # TODO: put your app email
+APP_EMAIL = "laksend.lk@gmail.com"  # TODO: put your app email
 APP_EMAIL_PASSWORD = "zami qdsh wvvy chyj"  # TODO: app password (not normal login)
 
 
-def send_otp_email(to_email: str, username: str, otp_code: str):
+def send_otp_email(to_email: str, full_name: str, otp_code: str):
     subject = "Your LKRt Wallet OTP Verification Code"
     body = (
-        f"Hi {username},\n\n"
+        f"Hi {full_name},\n\n"
         f"Your OTP code is: {otp_code}\n"
         "It is valid for this signup session.\n\n"
         "If you did not request this, please ignore this email.\n\n"
@@ -71,19 +71,28 @@ def send_otp_email(to_email: str, username: str, otp_code: str):
 
 # ================= REQUEST MODELS =================
 
+
 class SignupRequest(BaseModel):
     username: str
     email: EmailStr
     password: str
+    first_name: str
+    last_name: str
+    nic: str
+    address: str
+    postal_code: str
     initial_balance: float = 1000.0
+
 
 class LoginRequest(BaseModel):
     username: str
     password: str
 
+
 class VerifyOtpRequest(BaseModel):
     username: str
     otp_code: str
+
 
 class TransferRequest(BaseModel):
     sender_username: str
@@ -91,16 +100,19 @@ class TransferRequest(BaseModel):
     amount: float
     password: str
 
+
 class ConvertRequest(BaseModel):
     username: str
     from_currency: str
     to_currency: str
     amount: float
 
+
 class MineRequest(BaseModel):
     miner_address: str
 
 # ================= API ENDPOINTS =================
+
 
 @app.get("/")
 def read_root():
@@ -115,10 +127,18 @@ def read_root():
             "Email OTP Verification",
         ],
         "endpoints": [
-            "/signup", "/verify-otp", "/login", "/balance", "/transfer",
-            "/convert", "/mine", "/mining/stats", "/blockchain",
+            "/signup",
+            "/verify-otp",
+            "/login",
+            "/balance",
+            "/transfer",
+            "/convert",
+            "/mine",
+            "/mining/stats",
+            "/blockchain",
         ],
     }
+
 
 @app.post("/signup")
 def signup(request: SignupRequest):
@@ -138,13 +158,18 @@ def signup(request: SignupRequest):
     # Generate 6-digit OTP
     otp_code = f"{random.randint(100000, 999999)}"
 
-    # Create user in DB (unverified + OTP)
+    # Create user in DB (unverified + OTP + profile fields)
     success = db.create_user(
         request.username,
         request.email,
         password_hash,
         wallet_info,
         otp_code,
+        request.first_name,
+        request.last_name,
+        request.nic,
+        request.address,
+        request.postal_code,
     )
     if not success:
         raise HTTPException(
@@ -152,8 +177,9 @@ def signup(request: SignupRequest):
             detail="Username already exists or database error",
         )
 
+    full_name = f"{request.first_name} {request.last_name}"
     # Send OTP email
-    send_otp_email(request.email, request.username, otp_code)
+    send_otp_email(request.email, full_name, otp_code)
 
     # Initial SYSTEM → user mint as a transaction, then auto-mine it
     initial_tx = Transaction("SYSTEM", wallet.address, request.initial_balance)
@@ -164,6 +190,7 @@ def signup(request: SignupRequest):
     return {
         "message": "Account created. OTP sent to your email. Please verify to activate login.",
         "username": request.username,
+        "full_name": full_name,
         "wallet_address": wallet.address,
         "public_key": wallet.public_key,
         "initial_balance": request.initial_balance,
@@ -171,6 +198,7 @@ def signup(request: SignupRequest):
         "warning": "⚠️ Save your private key securely! It cannot be recovered if lost.",
         "security_note": "🔒 Your private key is encrypted with your password in the database.",
     }
+
 
 @app.post("/verify-otp")
 def verify_otp(request: VerifyOtpRequest):
@@ -183,9 +211,10 @@ def verify_otp(request: VerifyOtpRequest):
         )
     return {"message": msg, "username": request.username}
 
+
 @app.post("/login")
 def login(request: LoginRequest):
-    """User login - verifies credentials and returns wallet info."""
+    """User login - verifies credentials and returns wallet info and profile."""
     user = db.get_user(request.username)
     if not user:
         raise HTTPException(
@@ -219,14 +248,24 @@ def login(request: LoginRequest):
         )
 
     balance = blockchain.get_balance(user["wallet_address"])
+    full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
 
     return {
         "message": "Login successful",
         "username": request.username,
+        "full_name": full_name,
         "wallet_address": user["wallet_address"],
         "public_key": user["public_key"],
         "balance": balance,
+        "first_name": user.get("first_name"),
+        "last_name": user.get("last_name"),
+        "nic": user.get("nic"),
+        "address": user.get("address"),
+        "postal_code": user.get("postal_code"),
+        "email": user.get("email"),
+        "created_at": user.get("created_at", "N/A"),
     }
+
 
 @app.get("/balance/{wallet_address}")
 def get_balance(wallet_address: str):
@@ -234,11 +273,17 @@ def get_balance(wallet_address: str):
     balance = blockchain.get_balance(wallet_address)
     user = db.get_user_by_address(wallet_address)
 
+    full_name = None
+    if user and (user.get("first_name") or user.get("last_name")):
+        full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+
     return {
         "wallet_address": wallet_address,
         "username": user["username"] if user else "Unknown",
+        "full_name": full_name,
         "balance_LKRt": balance,
     }
+
 
 @app.get("/user/{username}")
 def get_user_info(username: str):
@@ -251,14 +296,23 @@ def get_user_info(username: str):
         )
 
     balance = blockchain.get_balance(user["wallet_address"])
+    full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
 
     return {
         "username": user["username"],
+        "full_name": full_name,
         "wallet_address": user["wallet_address"],
         "public_key": user["public_key"],
         "balance": balance,
         "created_at": user.get("created_at", "N/A"),
+        "first_name": user.get("first_name"),
+        "last_name": user.get("last_name"),
+        "nic": user.get("nic"),
+        "address": user.get("address"),
+        "postal_code": user.get("postal_code"),
+        "email": user.get("email"),
     }
+
 
 @app.post("/transfer")
 def transfer(request: TransferRequest):
@@ -343,6 +397,7 @@ def transfer(request: TransferRequest):
         "receiver_balance": blockchain.get_balance(request.receiver_address),
     }
 
+
 @app.post("/mine")
 def mine_block(request: MineRequest):
     """Explicit mining endpoint (if you want manual mining from UI)."""
@@ -371,6 +426,7 @@ def mine_block(request: MineRequest):
         "nonce": block.nonce,
     }
 
+
 @app.get("/mining/stats")
 def get_mining_stats():
     """Get current mining difficulty and statistics."""
@@ -384,10 +440,12 @@ def get_mining_stats():
         "estimated_mining_time": f"~{2 ** stats['difficulty'] / 1000:.1f}s",
     }
 
+
 @app.get("/currencies")
 def get_supported_currencies():
     """Get list of supported currencies for conversion."""
     return {"currencies": SUPPORTED_CURRENCIES, "base_currency": "LKRt"}
+
 
 @app.get("/portfolio/{username}")
 def get_user_portfolio(username: str):
@@ -415,6 +473,7 @@ def get_user_portfolio(username: str):
         "portfolio": portfolio,
         "total_currencies": len([v for v in portfolio.values() if v > 0]),
     }
+
 
 @app.post("/convert")
 def convert_currency(request: ConvertRequest):
@@ -472,6 +531,7 @@ def convert_currency(request: ConvertRequest):
             detail=str(e),
         )
 
+
 @app.get("/blockchain")
 def get_blockchain():
     """Get entire blockchain with validation status."""
@@ -483,11 +543,13 @@ def get_blockchain():
         "difficulty": blockchain.difficulty,
     }
 
+
 @app.get("/blockchain/latest")
 def get_latest_block():
     """Get the latest mined block."""
     latest = blockchain.get_latest_block()
     return latest.to_dict()
+
 
 @app.get("/transactions/{wallet_address}")
 def get_transactions(wallet_address: str):
@@ -512,6 +574,7 @@ def get_transactions(wallet_address: str):
         "transactions": transactions,
     }
 
+
 @app.get("/health")
 def health_check():
     """Health check endpoint for monitoring."""
@@ -525,6 +588,8 @@ def health_check():
         "encryption_enabled": True,
     }
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
