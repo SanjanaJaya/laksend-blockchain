@@ -258,6 +258,16 @@
               <div id="transfer-confirmation" class="transfer-confirmation" style="display:none;">
                 <h3>Confirm transfer</h3>
                 <p id="transfer-summary"></p>
+
+                <!-- OTP step (hidden initially) -->
+                <div id="transfer-otp-section" style="display:none;">
+                  <div class="form-group">
+                    <label>Transfer OTP</label>
+                    <p class="muted" style="font-size:13px;">An OTP has been sent to your registered email.</p>
+                    <input type="text" id="transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6">
+                  </div>
+                </div>
+
                 <button class="primary-btn" onclick="confirmTransfer()">Confirm</button>
                 <button class="secondary-btn" onclick="cancelTransfer()">Cancel</button>
               </div>

@@ -93,6 +93,7 @@ class Database:
                     "public_key": user["public_key"],
                     "first_name": user.get("first_name"),
                     "last_name": user.get("last_name"),
+                    "email": user.get("email"),  # Fix: include email so receipt emails can be sent
                 }
             return None
         except Exception as e:

@@ -5,6 +5,8 @@ import hashlib
 from typing import List
 import random
 import smtplib
+import time
+from datetime import datetime
 from email.mime.text import MIMEText
 
 from blockchain import Blockchain
@@ -27,6 +29,9 @@ app.add_middleware(
 # Initialize blockchain with Proof of Work (difficulty = 4)
 blockchain = Blockchain(difficulty=4)
 db = Database()
+
+# In-memory OTP store for transfer verification
+transfer_otp_store = {}  # { username: { "otp": "123456", "expires": timestamp } }
 
 # Supported currencies
 SUPPORTED_CURRENCIES: List[str] = [
@@ -69,6 +74,75 @@ def send_otp_email(to_email: str, full_name: str, otp_code: str):
             detail="Failed to send OTP email",
         )
 
+
+def send_receipt_email(to_email: str, fullname: str, amount: float, sender_name: str, tx_hash: str, block_index: int, timestamp: str):
+    subject = "💸 You received LKRt – Payment Receipt"
+    body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {{ font-family: Arial, sans-serif; background: #f4f7fa; margin: 0; padding: 0; }}
+    .container {{ max-width: 580px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
+    .header {{ background: linear-gradient(135deg, #6c63ff, #3ecf8e); padding: 36px 32px; text-align: center; }}
+    .header h1 {{ color: #fff; margin: 0; font-size: 26px; letter-spacing: 1px; }}
+    .header p {{ color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 14px; }}
+    .body {{ padding: 32px; }}
+    .amount-box {{ background: #f0fdf4; border: 2px solid #3ecf8e; border-radius: 10px; text-align: center; padding: 24px; margin-bottom: 28px; }}
+    .amount-box .label {{ font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }}
+    .amount-box .amount {{ font-size: 42px; font-weight: 700; color: #16a34a; margin: 8px 0 0; }}
+    .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 24px; }}
+    .details-table td {{ padding: 10px 4px; font-size: 14px; border-bottom: 1px solid #f3f4f6; }}
+    .details-table td:first-child {{ color: #6b7280; font-weight: 500; width: 40%; }}
+    .details-table td:last-child {{ color: #111827; font-weight: 600; word-break: break-all; }}
+    .footer {{ background: #f9fafb; padding: 20px 32px; text-align: center; font-size: 12px; color: #9ca3af; }}
+    .badge {{ display: inline-block; background: #dcfce7; color: #15803d; font-size: 12px; font-weight: 700; border-radius: 20px; padding: 4px 14px; margin-bottom: 16px; letter-spacing: 0.5px; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>LKRt Wallet</h1>
+      <p>Payment Receipt</p>
+    </div>
+    <div class="body">
+      <p style="color:#374151;font-size:15px;">Hi <strong>{fullname}</strong>,</p>
+      <p style="color:#6b7280;font-size:14px;margin-bottom:20px;">You have successfully received a payment on the LKRt blockchain.</p>
+      <div class="amount-box">
+        <div class="label">Amount Received</div>
+        <div class="amount">+{amount:.2f} <span style="font-size:22px;color:#16a34a;">LKRt</span></div>
+      </div>
+      <span class="badge">✅ CONFIRMED ON BLOCKCHAIN</span>
+      <table class="details-table">
+        <tr><td>From</td><td>{sender_name}</td></tr>
+        <tr><td>Block #</td><td>{block_index}</td></tr>
+        <tr><td>Transaction ID</td><td>{tx_hash}</td></tr>
+        <tr><td>Date & Time</td><td>{timestamp}</td></tr>
+      </table>
+      <p style="font-size:13px;color:#9ca3af;">This is an automated receipt. Please keep it for your records.</p>
+    </div>
+    <div class="footer">
+      LKRt Wallet &bull; Blockchain-secured payments &bull; Do not reply to this email.
+    </div>
+  </div>
+</body>
+</html>
+"""
+    msg = MIMEText(body, "html")
+    msg["Subject"] = subject
+    msg["From"] = APP_EMAIL
+    msg["To"] = to_email
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(APP_EMAIL, APP_EMAIL_PASSWORD)
+            server.send_message(msg)
+    except Exception as e:
+        print(f"Failed to send receipt email: {e}")
+        # Non-fatal: don't raise, just log
+
+
 # ================= REQUEST MODELS =================
 
 
@@ -99,6 +173,20 @@ class TransferRequest(BaseModel):
     receiver_address: str
     amount: float
     password: str
+    otp_code: str  # Required for transfer OTP verification
+
+
+class TransferOtpRequestModel(BaseModel):
+    username: str
+
+
+class VerifyTransferOtpRequest(BaseModel):
+    username: str
+    otp_code: str
+    sender_username: str
+    receiver_address: str
+    amount: float
+    password: str
 
 
 class ConvertRequest(BaseModel):
@@ -125,12 +213,15 @@ def read_root():
             "Smart Contracts",
             "Encrypted Private Keys",
             "Email OTP Verification",
+            "Transfer OTP Verification",
+            "Receipt Email Notifications",
         ],
         "endpoints": [
             "/signup",
             "/verify-otp",
             "/login",
             "/balance",
+            "/request-transfer-otp",
             "/transfer",
             "/convert",
             "/mine",
@@ -314,9 +405,47 @@ def get_user_info(username: str):
     }
 
 
+@app.post("/request-transfer-otp")
+def request_transfer_otp(request: TransferOtpRequestModel):
+    """Send an OTP to the user's email before allowing a transfer."""
+    user = db.get_user(request.username)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    otp_code = f"{random.randint(100000, 999999)}"
+    transfer_otp_store[request.username] = {
+        "otp": otp_code,
+        "expires": time.time() + 300  # 5-minute expiry
+    }
+    fullname = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    send_otp_email(user.get("email"), fullname, otp_code)  # reuse existing function
+    return {"message": "OTP sent to your registered email. Valid for 5 minutes."}
+
+
 @app.post("/transfer")
 def transfer(request: TransferRequest):
     """Transfer LKRt and auto-mine so balances update immediately."""
+
+    # 0. Verify transfer OTP
+    stored = transfer_otp_store.get(request.sender_username)
+    if not stored:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Transfer OTP not verified. Please request an OTP first.",
+        )
+    if time.time() > stored["expires"]:
+        transfer_otp_store.pop(request.sender_username, None)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Transfer OTP has expired. Please request a new one.",
+        )
+    if stored["otp"] != request.otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid transfer OTP.",
+        )
+    transfer_otp_store.pop(request.sender_username, None)  # consume OTP
+
     # 1. Get sender info
     sender = db.get_user(request.sender_username)
     if not sender:
@@ -387,6 +516,26 @@ def transfer(request: TransferRequest):
     block = blockchain.mine_pending_transactions(
         mining_reward_address=sender["wallet_address"]
     )
+
+    # 10. Send receipt email to receiver
+    receiver_user = db.get_user_by_address(request.receiver_address)
+    if receiver_user and receiver_user.get("email"):
+        try:
+            recv_fullname = f"{receiver_user.get('first_name', '')} {receiver_user.get('last_name', '')}".strip()
+            sender_fullname = f"{sender.get('first_name', '')} {sender.get('last_name', '')}".strip()
+            tx_hash = tx.to_dict().get("signature", "N/A")[:20] + "..."
+            timestamp_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            send_receipt_email(
+                receiver_user.get("email"),
+                recv_fullname,
+                request.amount,
+                sender_fullname,
+                tx_hash,
+                block.index if block else 0,
+                timestamp_str,
+            )
+        except Exception as e:
+            print(f"Receipt email failed: {e}")  # Log but don't fail the transfer
 
     return {
         "message": "Transfer successful",

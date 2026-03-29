@@ -474,67 +474,73 @@ async function fetchReceiverInfo() {
   }
 }
 
-function prepareTransfer() {
-  if (!currentUser) {
-    showNotification('error', 'Transfer Error', 'Please login first');
-    return;
-  }
-
+async function prepareTransfer() {
+  if (!currentUser) { showNotification('error', 'Transfer Error', 'Please login first'); return; }
   const receiverAddress = document.getElementById('receiver-address').value.trim();
   const amount = parseFloat(document.getElementById('transfer-amount').value);
   const password = document.getElementById('transfer-password').value;
-
   if (!receiverAddress || !amount || !password) {
-    showNotification('error', 'Validation Error', 'Please fill all fields');
-    return;
+    showNotification('error', 'Validation Error', 'Please fill all fields'); return;
   }
+  pendingTransferData = { sender_username: currentUser.username, receiver_address: receiverAddress, amount, password };
 
-  pendingTransferData = {
-    sender_username: currentUser.username,
-    receiver_address: receiverAddress,
-    amount,
-    password,
-  };
-
-  const summary = document.getElementById('transfer-summary');
-  const confirmBox = document.getElementById('transfer-confirmation');
-  if (summary) {
-    summary.textContent = `Send ${amount.toFixed(2)} LKRt to ${receiverAddress}?`;
+  // Request OTP
+  try {
+    const res = await fetch(`${API_URL}/request-transfer-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: currentUser.username })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showNotification('info', 'OTP Sent', 'Check your email for the transfer OTP.');
+      document.getElementById('transfer-otp-section').style.display = 'block';
+      const summary = document.getElementById('transfer-summary');
+      if (summary) summary.textContent = `Send ${amount.toFixed(2)} LKRt to ${receiverAddress}?`;
+      const confirmBox = document.getElementById('transfer-confirmation');
+      if (confirmBox) confirmBox.style.display = 'block';
+    } else {
+      showNotification('error', 'OTP Error', data.detail || 'Could not send OTP');
+    }
+  } catch (err) {
+    showNotification('error', 'Connection Error', 'Could not reach server');
   }
-  if (confirmBox) confirmBox.style.display = 'block';
 }
 
 function cancelTransfer() {
   pendingTransferData = null;
-  const confirmBox = document.getElementById('transfer-confirmation');
-  if (confirmBox) confirmBox.style.display = 'none';
+  document.getElementById('transfer-confirmation').style.display = 'none';
+  document.getElementById('transfer-otp-section').style.display = 'none';
+  const otpInput = document.getElementById('transfer-otp-input');
+  if (otpInput) otpInput.value = '';
 }
 
 async function confirmTransfer() {
   if (!pendingTransferData) return;
+  const otpInput = document.getElementById('transfer-otp-input');
+  const otpCode = otpInput ? otpInput.value.trim() : '';
+  if (!otpCode) { showNotification('error', 'Validation Error', 'Please enter the OTP'); return; }
 
   try {
     const response = await fetch(`${API_URL}/transfer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pendingTransferData),
+      body: JSON.stringify({ ...pendingTransferData, otp_code: otpCode })
     });
     const data = await response.json();
-
     if (response.ok) {
-      showNotification('success', 'Transfer Successful', 'Your transfer has been confirmed.');
+      showNotification('success', 'Transfer Successful', `Sent ${pendingTransferData.amount.toFixed(2)} LKRt. Receiver will get an email receipt.`);
       pendingTransferData = null;
       document.getElementById('transfer-confirmation').style.display = 'none';
+      document.getElementById('transfer-otp-section').style.display = 'none';
+      if (otpInput) otpInput.value = '';
       document.getElementById('transfer-amount').value = '';
       document.getElementById('transfer-password').value = '';
-      loadPortfolio();
-      loadRecentTransactions();
-      loadTransactionHistory();
+      loadPortfolio(); loadRecentTransactions(); loadTransactionHistory();
     } else {
       showNotification('error', 'Transfer Failed', data.detail || 'Could not complete transfer');
     }
   } catch (error) {
-    console.error('Transfer error:', error);
     showNotification('error', 'Connection Error', 'Could not connect to server');
   }
 }
