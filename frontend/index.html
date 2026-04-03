@@ -2,28 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>LKRt Wallet Dashboard</title>
+  <title>LAKSEND — Blockchain Wallet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="style.css" />
+  <!-- jsPDF for slip generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <div id="app-root">
+
     <!-- ================= AUTH SECTION ================= -->
     <section id="auth-section" class="auth-section active">
       <div class="auth-container">
         <div class="auth-header">
-          <h1>LKRt Wallet</h1>
-          <p>Secure blockchain wallet with instant transfers and FX.</p>
+          <img
+            src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png"
+            alt="LAKSEND"
+            class="auth-logo"
+            onerror="this.style.display='none'"
+          />
+          <h1>LAK<span>SEND</span></h1>
+          <p>Secure blockchain wallet · Instant transfers · Live FX</p>
         </div>
 
         <div class="auth-body">
           <div class="tab-header">
-            <button class="tab-btn active" data-tab="login" onclick="showTab('login')">
-              Login
-            </button>
-            <button class="tab-btn" data-tab="signup" onclick="showTab('signup')">
-              Sign up
-            </button>
+            <button class="tab-btn active" data-tab="login" onclick="showTab('login')">Login</button>
+            <button class="tab-btn" data-tab="signup" onclick="showTab('signup')">Sign up</button>
           </div>
 
           <!-- LOGIN TAB -->
@@ -37,7 +42,7 @@
                 <label for="login-password">Password</label>
                 <input type="password" id="login-password" placeholder="Your password" />
               </div>
-              <button class="primary-btn" onclick="login()">Login</button>
+              <button class="primary-btn" onclick="login()">Login to Wallet</button>
             </div>
           </div>
 
@@ -54,17 +59,14 @@
                   <input type="text" id="signup-last-name" placeholder="Doe" />
                 </div>
               </div>
-
               <div class="form-group">
                 <label for="signup-nic">NIC number</label>
                 <input type="text" id="signup-nic" placeholder="NIC number" />
               </div>
-
               <div class="form-group">
                 <label for="signup-address">Address</label>
                 <input type="text" id="signup-address" placeholder="Street, City" />
               </div>
-
               <div class="form-row">
                 <div class="form-group">
                   <label for="signup-postal-code">Postal code</label>
@@ -72,31 +74,32 @@
                 </div>
                 <div class="form-group">
                   <label for="signup-username">Username</label>
-                  <input type="text" id="signup-username" placeholder="Choose a username" />
+                  <input type="text" id="signup-username" placeholder="Choose username" />
                 </div>
               </div>
-
               <div class="form-group">
                 <label for="signup-email">Email</label>
                 <input type="email" id="signup-email" placeholder="you@example.com" />
               </div>
-
               <div class="form-group">
                 <label for="signup-password">Password</label>
-                <input type="password" id="signup-password" placeholder="Enter a strong password" />
+                <input type="password" id="signup-password" placeholder="Strong password" />
               </div>
-
               <div class="form-group">
                 <label for="initial-balance">Initial LKRt balance</label>
                 <input type="number" id="initial-balance" value="1000" min="0" step="0.01" />
               </div>
+              <button class="primary-btn" onclick="signup()">Create Account</button>
 
-              <button class="primary-btn" onclick="signup()">Sign up</button>
-
-              <div id="otp-section" style="display:none;">
-                <p>We have sent an OTP code to your email. Enter it below to verify your account.</p>
-                <input type="text" id="signup-otp" placeholder="Enter OTP code" />
-                <button class="primary-btn" onclick="verifySignupOtp()">Verify OTP</button>
+              <div id="otp-section" style="display:none; margin-top:20px;">
+                <p style="font-size:13px;color:#475569;margin-bottom:12px;">
+                  We sent a verification code to your email.
+                </p>
+                <div class="form-group">
+                  <label>OTP Code</label>
+                  <input type="text" id="signup-otp" placeholder="Enter 6-digit code" maxlength="6" />
+                </div>
+                <button class="primary-btn gold-btn" onclick="verifySignupOtp()">Verify & Continue</button>
               </div>
             </div>
           </div>
@@ -106,19 +109,28 @@
 
     <!-- ================= DASHBOARD SECTION ================= -->
     <section id="dashboard-section" class="dashboard-section">
-      <!-- Top bar -->
+
+      <!-- Topbar -->
       <header class="topbar">
         <div class="topbar-content">
           <div class="topbar-left">
-            <h1>Welcome, <span id="user-fullname-display"></span></h1>
-            <small>
-              @<span id="username-display"></span> ·
-              <span class="wallet-inline">
-                Wallet:
-                <span id="wallet-address"></span>
-                <button class="link-btn" onclick="copyWalletAddress()">Copy</button>
-              </span>
-            </small>
+            <img
+              src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png"
+              alt="LAKSEND"
+              class="topbar-logo-img"
+              onerror="this.style.display='none'"
+            />
+            <div class="topbar-brand">
+              <h1>Welcome, <em id="user-fullname-display"></em></h1>
+              <small>
+                @<span id="username-display"></span>
+                <span class="wallet-inline">
+                  &nbsp;·&nbsp;
+                  <span id="wallet-address"></span>
+                  <button class="link-btn" onclick="copyWalletAddress()">Copy</button>
+                </span>
+              </small>
+            </div>
           </div>
           <div class="topbar-right">
             <button class="secondary-btn" onclick="logout()">Logout</button>
@@ -127,121 +139,111 @@
       </header>
 
       <div class="dashboard-layout">
+
         <!-- Sidebar -->
         <nav class="sidebar">
-          <div class="sidebar-title">Menu</div>
-          <button class="sidebar-item active" data-page="overview" onclick="showPage('overview')">
-            Overview
-          </button>
-          <button class="sidebar-item" data-page="profile" onclick="showPage('profile')">
-            Profile
-          </button>
-          <button class="sidebar-item" data-page="transfer" onclick="showPage('transfer')">
-            Transfer
-          </button>
-          <button class="sidebar-item" data-page="convert" onclick="showPage('convert')">
-            Convert
-          </button>
-          <button class="sidebar-item" data-page="transactions" onclick="showPage('transactions')">
-            Transactions
-          </button>
+          <div class="sidebar-title">Navigation</div>
+          <button class="sidebar-item active" data-page="overview" onclick="showPage('overview')">Overview</button>
+          <button class="sidebar-item" data-page="profile" onclick="showPage('profile')">Profile</button>
+          <button class="sidebar-item" data-page="transfer" onclick="showPage('transfer')">Transfer</button>
+          <button class="sidebar-item" data-page="convert" onclick="showPage('convert')">Convert</button>
+          <button class="sidebar-item" data-page="transactions" onclick="showPage('transactions')">Transactions</button>
         </nav>
 
         <!-- Main content -->
         <main class="content">
+
           <!-- OVERVIEW PAGE -->
           <section id="overview-page" class="page-content active">
+            <div class="page-header">
+              <h2>Overview</h2>
+              <p>Your portfolio summary and recent activity</p>
+            </div>
             <div class="page-grid">
               <div class="page-card">
                 <h2>Portfolio</h2>
-                <div id="portfolio-balances">
-                  <!-- Filled by JS -->
-                </div>
+                <div id="portfolio-balances"></div>
               </div>
-
               <div class="page-card">
-                <h2>Recent transactions</h2>
-                <div id="recent-transaction-list">
-                  <!-- Filled by JS -->
-                </div>
+                <h2>Recent Transactions</h2>
+                <div id="recent-transaction-list"></div>
               </div>
             </div>
           </section>
 
           <!-- PROFILE PAGE -->
           <section id="profile-page" class="page-content">
-            <!-- Mobile-only wallet copy card -->
+            <div class="page-header">
+              <h2>Profile</h2>
+              <p>Your account information</p>
+            </div>
+
             <div class="page-card mobile-wallet-card">
               <h2>Your Wallet</h2>
               <div class="mobile-wallet-row">
                 <span class="mobile-wallet-address" id="mobile-wallet-address"></span>
                 <button class="copy-wallet-btn" onclick="copyWalletAddress()">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  Copy address
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Copy
                 </button>
               </div>
             </div>
 
             <div class="page-card">
-              <h2>Your Profile</h2>
-              <section id="profile-section">
-                <div class="profile-grid">
-                  <div class="profile-item">
-                    <span class="label">Full name</span>
-                    <span class="value" id="profile-full-name"></span>
-                  </div>
-                  <div class="profile-item">
-                    <span class="label">Username</span>
-                    <span class="value" id="profile-username"></span>
-                  </div>
-                  <div class="profile-item">
-                    <span class="label">Email</span>
-                    <span class="value" id="profile-email"></span>
-                  </div>
-                  <div class="profile-item">
-                    <span class="label">NIC</span>
-                    <span class="value" id="profile-nic"></span>
-                  </div>
-                  <div class="profile-item">
-                    <span class="label">Address</span>
-                    <span class="value" id="profile-address"></span>
-                  </div>
-                  <div class="profile-item">
-                    <span class="label">Postal code</span>
-                    <span class="value" id="profile-postal-code"></span>
-                  </div>
-                  <div class="profile-item">
-                    <span class="label">Wallet address</span>
-                    <span class="value" id="profile-wallet-address"></span>
-                  </div>
-                  <div class="profile-item">
-                    <span class="label">Joined</span>
-                    <span class="value" id="profile-created-at"></span>
-                  </div>
+              <h2>Account Details</h2>
+              <div class="profile-grid">
+                <div class="profile-item">
+                  <span class="label">Full name</span>
+                  <span class="value" id="profile-full-name"></span>
                 </div>
-              </section>
+                <div class="profile-item">
+                  <span class="label">Username</span>
+                  <span class="value" id="profile-username"></span>
+                </div>
+                <div class="profile-item">
+                  <span class="label">Email</span>
+                  <span class="value" id="profile-email"></span>
+                </div>
+                <div class="profile-item">
+                  <span class="label">NIC</span>
+                  <span class="value" id="profile-nic"></span>
+                </div>
+                <div class="profile-item">
+                  <span class="label">Address</span>
+                  <span class="value" id="profile-address"></span>
+                </div>
+                <div class="profile-item">
+                  <span class="label">Postal code</span>
+                  <span class="value" id="profile-postal-code"></span>
+                </div>
+                <div class="profile-item">
+                  <span class="label">Wallet address</span>
+                  <span class="value" id="profile-wallet-address"></span>
+                </div>
+                <div class="profile-item">
+                  <span class="label">Joined</span>
+                  <span class="value" id="profile-created-at"></span>
+                </div>
+              </div>
             </div>
           </section>
 
           <!-- TRANSFER PAGE -->
           <section id="transfer-page" class="page-content">
-            <div class="page-card">
+            <div class="page-header">
               <h2>Transfer LKRt</h2>
-              <p class="muted">⚠️ This transaction cannot be reversed once confirmed.</p>
+              <p>Send LKRt to any wallet address instantly</p>
+            </div>
+            <div class="page-card">
+              <h2>New Transfer</h2>
+              <p class="muted" style="margin-bottom:18px;">⚠️ Blockchain transactions cannot be reversed once confirmed.</p>
 
               <div class="form-group">
                 <label for="receiver-address">Receiver wallet address</label>
-                <input
-                  type="text"
-                  id="receiver-address"
-                  placeholder="Paste the recipient wallet address"
-                  onblur="fetchReceiverInfo()"
-                />
+                <input type="text" id="receiver-address" placeholder="Paste recipient wallet address" onblur="fetchReceiverInfo()" />
               </div>
 
-              <div id="receiver-info" class="receiver-info">
-                <!-- Filled by JS -->
-              </div>
+              <div id="receiver-info" class="receiver-info"></div>
 
               <div class="form-group">
                 <label for="transfer-amount">Amount (LKRt)</label>
@@ -256,87 +258,79 @@
               <button class="primary-btn" onclick="prepareTransfer()">Continue</button>
 
               <div id="transfer-confirmation" class="transfer-confirmation" style="display:none;">
-                <h3>Confirm transfer</h3>
+                <h3>⚡ Confirm Transfer</h3>
                 <p id="transfer-summary"></p>
-
-                <!-- OTP step (hidden initially) -->
                 <div id="transfer-otp-section" style="display:none;">
                   <div class="form-group">
                     <label>Transfer OTP</label>
-                    <p class="muted" style="font-size:13px;">An OTP has been sent to your registered email.</p>
-                    <input type="text" id="transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6">
+                    <p class="muted" style="font-size:12.5px;margin-bottom:8px;">A code has been sent to your registered email.</p>
+                    <input type="text" id="transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" />
                   </div>
                 </div>
-
-                <button class="primary-btn" onclick="confirmTransfer()">Confirm</button>
-                <button class="secondary-btn" onclick="cancelTransfer()">Cancel</button>
+                <div style="display:flex;gap:10px;margin-top:8px;">
+                  <button class="primary-btn gold-btn" style="flex:2" onclick="confirmTransfer()">Confirm & Send</button>
+                  <button class="secondary-btn" style="flex:1" onclick="cancelTransfer()">Cancel</button>
+                </div>
               </div>
             </div>
 
             <div id="favorites-section" class="page-card" style="display:none;">
-              <h2>Favorite payees</h2>
-              <div id="favorites-list" class="favorites-list">
-                <!-- filled by JS -->
-              </div>
+              <h2>Favourite Payees</h2>
+              <div id="favorites-list" class="favorites-list"></div>
             </div>
           </section>
 
           <!-- CONVERT PAGE -->
           <section id="convert-page" class="page-content">
+            <div class="page-header">
+              <h2>Currency Conversion</h2>
+              <p>Convert between LKRt and foreign currencies at live rates</p>
+            </div>
             <div class="page-card">
-              <h2>Currency conversion</h2>
-
+              <h2>Convert</h2>
               <div class="convert-grid">
                 <div class="form-group">
                   <label for="from-currency">From</label>
-                  <select id="from-currency" onchange="updateConversionBalances()">
-                    <!-- filled by JS -->
-                  </select>
+                  <select id="from-currency" onchange="updateConversionBalances()"></select>
                   <small id="from-currency-balance" class="muted"></small>
                 </div>
-
+                <div class="convert-arrow">⇄</div>
                 <div class="form-group">
                   <label for="to-currency">To</label>
-                  <select id="to-currency" onchange="updateConversionBalances()">
-                    <!-- filled by JS -->
-                  </select>
+                  <select id="to-currency" onchange="updateConversionBalances()"></select>
                   <small id="to-currency-balance" class="muted"></small>
                 </div>
               </div>
-
               <div class="form-group">
                 <label for="convert-amount">Amount</label>
                 <input type="number" id="convert-amount" min="0" step="0.01" />
               </div>
-
-              <button class="primary-btn" onclick="convertCurrency()">Convert</button>
-
-              <div id="convert-result">
-                <!-- filled by JS -->
-              </div>
+              <button class="primary-btn" onclick="convertCurrency()">Convert Now</button>
+              <div id="convert-result" style="margin-top:16px;"></div>
             </div>
 
             <div class="page-card">
-              <h2>FX balances</h2>
-              <div id="fx-balances">
-                <!-- filled by JS -->
-              </div>
+              <h2>FX Balances</h2>
+              <div id="fx-balances"></div>
             </div>
           </section>
 
           <!-- TRANSACTIONS PAGE -->
           <section id="transactions-page" class="page-content">
+            <div class="page-header">
+              <h2>Transaction History</h2>
+              <p>All your blockchain transactions · Download slips anytime</p>
+            </div>
             <div class="page-card">
-              <h2>All transactions</h2>
-              <div id="transaction-list">
-                <!-- Filled by JS -->
-              </div>
+              <h2>All Transactions</h2>
+              <div id="transaction-list"></div>
             </div>
           </section>
+
         </main>
       </div>
 
-      <!-- ================= MOBILE NAV ================= -->
+      <!-- MOBILE NAV -->
       <nav class="mobile-nav">
         <div class="mobile-nav-inner">
           <button class="nav-item active" data-page="overview" onclick="showPage('overview')">
@@ -368,10 +362,26 @@
   <!-- Notifications -->
   <div id="notification-container" class="notification-container"></div>
 
+  <!-- PDF Slip Modal -->
+  <div id="slip-modal-overlay" class="slip-modal-overlay" style="display:none;" onclick="closeSlipModal(event)">
+    <div class="slip-modal">
+      <div class="slip-modal-header">
+        <h3>📄 Transfer Receipt</h3>
+        <button class="slip-close-btn" onclick="closeSlipModalDirect()">×</button>
+      </div>
+      <div class="slip-modal-body" id="slip-preview-content">
+        <!-- Filled by JS -->
+      </div>
+      <div class="slip-actions">
+        <button class="primary-btn gold-btn" onclick="downloadSlipPDF()">Download PDF Slip</button>
+        <button class="secondary-btn" style="width:auto;padding:12px 20px;" onclick="closeSlipModalDirect()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="script.js"></script>
   <script>
-    // Mirror the wallet address into the mobile profile card whenever it changes.
-    // This works regardless of how script.js sets #wallet-address.
+    // Mirror wallet address into mobile profile card
     (function () {
       const source = document.getElementById('wallet-address');
       const target = document.getElementById('mobile-wallet-address');
@@ -381,4 +391,5 @@
       new MutationObserver(sync).observe(source, { childList: true, characterData: true, subtree: true });
     })();
   </script>
+</body>
 </html>

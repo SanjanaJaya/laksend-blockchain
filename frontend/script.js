@@ -530,6 +530,20 @@ async function confirmTransfer() {
     const data = await response.json();
     if (response.ok) {
       showNotification('success', 'Transfer Successful', `Sent ${pendingTransferData.amount.toFixed(2)} LKRt. Receiver will get an email receipt.`);
+
+      // Auto-open transfer slip
+      const slipDataForModal = {
+        type: 'sent',
+        amount: pendingTransferData.amount,
+        senderAddress: currentUser.wallet_address,
+        receiverAddress: pendingTransferData.receiver_address,
+        senderName: currentUser.full_name || currentUser.username,
+        receiverName: document.querySelector('#receiver-info .receiver-name')?.textContent || pendingTransferData.receiver_address.substring(0, 12) + '...',
+        timestamp: new Date().toLocaleString(),
+        blockIndex: 'Pending',
+      };
+      setTimeout(() => openSlipModal(slipDataForModal), 500);
+
       pendingTransferData = null;
       document.getElementById('transfer-confirmation').style.display = 'none';
       document.getElementById('transfer-otp-section').style.display = 'none';
@@ -745,29 +759,48 @@ async function processAndDisplayTransactions(transactions, containerId = 'transa
     const isSent = tx.fromaddress === currentUser.wallet_address;
     const isSystem = tx.fromaddress === 'SYSTEM';
 
-    let txType, txClass, details;
+    let txType, txClass, details, counterparty;
     if (isSystem) {
       txType = '🎁 System Reward';
       txClass = 'received';
       details = 'Initial/Mining Credit';
+      counterparty = 'SYSTEM';
     } else if (isReceived) {
       txType = '📥 Received';
       txClass = 'received';
-      details = `From: @${addressToUsername[tx.fromaddress] || 'Unknown'}`;
+      const senderName = addressToUsername[tx.fromaddress] || 'Unknown';
+      details = `From: @${senderName}`;
+      counterparty = senderName;
     } else if (isSent) {
       txType = '📤 Sent';
       txClass = 'sent';
-      details = `To: @${addressToUsername[tx.toaddress] || 'Unknown'}`;
+      const receiverName = addressToUsername[tx.toaddress] || 'Unknown';
+      details = `To: @${receiverName}`;
+      counterparty = receiverName;
     } else {
       txType = '❓ Unknown';
       txClass = '';
       details = 'Transaction type unknown';
+      counterparty = 'Unknown';
     }
 
     const timestamp = tx.timestamp
       ? new Date(tx.timestamp * 1000).toLocaleString()
       : 'Unknown time';
     const amountDisplay = tx.amount > 0 ? `${tx.amount.toFixed(2)} LKRt` : 'N/A';
+
+    // Build slip data object for PDF generation
+    const slipData = JSON.stringify({
+      type: isSystem ? 'reward' : (isSent ? 'sent' : 'received'),
+      amount: tx.amount,
+      senderAddress: tx.fromaddress || 'SYSTEM',
+      receiverAddress: tx.toaddress || '',
+      senderName: isSystem ? 'SYSTEM' : (isSent ? currentUser.full_name : (addressToUsername[tx.fromaddress] || 'Unknown')),
+      receiverName: isSystem ? (currentUser.full_name) : (isSent ? counterparty : currentUser.full_name),
+      timestamp: timestamp,
+      blockIndex: tx.block_index,
+      txLabel: txType.replace(/[^\w\s]/g, '').trim(),
+    }).replace(/'/g, '&#39;');
 
     const txElement = document.createElement('div');
     txElement.className = `transaction-item ${txClass}`;
@@ -780,10 +813,176 @@ async function processAndDisplayTransactions(transactions, containerId = 'transa
         <span>${details}</span>
         <span>${timestamp}</span>
         <span>Block #${tx.block_index}</span>
+        <button class="tx-slip-btn" onclick='openSlipModal(${slipData})'>📄 Slip</button>
       </div>
     `;
     container.appendChild(txElement);
   });
+}
+
+// ========== PDF SLIP ==========
+let currentSlipData = null;
+
+function openSlipModal(slipData) {
+  currentSlipData = slipData;
+  const overlay = document.getElementById('slip-modal-overlay');
+  const preview = document.getElementById('slip-preview-content');
+  if (!overlay || !preview) return;
+
+  const typeColor = slipData.type === 'sent' ? '#ef4444' : '#10b981';
+  const typeLabel = slipData.type === 'sent' ? 'Debit' : (slipData.type === 'reward' ? 'Credit (Reward)' : 'Credit');
+  const refId = `LS-${Date.now().toString(36).toUpperCase()}-${slipData.blockIndex}`;
+
+  preview.innerHTML = `
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:36px;margin-bottom:4px;">${slipData.type === 'sent' ? '📤' : '📥'}</div>
+      <div style="font-size:22px;font-weight:800;color:${typeColor};font-family:'JetBrains Mono',monospace;">
+        ${slipData.type === 'sent' ? '−' : '+'}${slipData.amount ? slipData.amount.toFixed(2) : '0.00'} LKRt
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-top:4px;">${typeLabel}</div>
+    </div>
+
+    <div style="background:#F4F6FB;border-radius:12px;padding:16px;font-size:13px;">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #E2E8F4;">
+        <span style="color:#64748b;font-weight:600;">Reference</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:#0B1437;">${refId}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #E2E8F4;">
+        <span style="color:#64748b;font-weight:600;">Date & Time</span>
+        <span style="color:#0B1437;font-weight:600;">${slipData.timestamp}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #E2E8F4;">
+        <span style="color:#64748b;font-weight:600;">From</span>
+        <span style="color:#0B1437;font-weight:700;">${slipData.senderName}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #E2E8F4;">
+        <span style="color:#64748b;font-weight:600;">To</span>
+        <span style="color:#0B1437;font-weight:700;">${slipData.receiverName}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #E2E8F4;">
+        <span style="color:#64748b;font-weight:600;">Block</span>
+        <span style="color:#0B1437;font-weight:600;">#${slipData.blockIndex}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;">
+        <span style="color:#64748b;font-weight:600;">Network</span>
+        <span style="color:#0B1437;font-weight:600;">LAKSEND Blockchain</span>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:#94a3b8;">
+      This is an official LAKSEND transaction receipt.<br/>Blockchain-verified · Immutable record
+    </div>
+  `;
+
+  overlay.style.display = 'flex';
+}
+
+function closeSlipModal(event) {
+  if (event.target === document.getElementById('slip-modal-overlay')) {
+    closeSlipModalDirect();
+  }
+}
+
+function closeSlipModalDirect() {
+  const overlay = document.getElementById('slip-modal-overlay');
+  if (overlay) overlay.style.display = 'none';
+  currentSlipData = null;
+}
+
+function downloadSlipPDF() {
+  if (!currentSlipData) return;
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) {
+    showNotification('error', 'PDF Error', 'PDF library not loaded. Please try again.');
+    return;
+  }
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+  const W = 148; // A5 width mm
+  const typeColor = currentSlipData.type === 'sent' ? [239, 68, 68] : [16, 185, 129];
+  const typeLabel = currentSlipData.type === 'sent' ? 'Debit' : (currentSlipData.type === 'reward' ? 'Credit (Reward)' : 'Credit');
+  const refId = `LS-${Date.now().toString(36).toUpperCase()}-${currentSlipData.blockIndex}`;
+  const sign = currentSlipData.type === 'sent' ? '-' : '+';
+  const amount = currentSlipData.amount ? currentSlipData.amount.toFixed(2) : '0.00';
+
+  // Background
+  doc.setFillColor(11, 20, 55);
+  doc.rect(0, 0, W, 55, 'F');
+
+  // Gold accent line
+  doc.setDrawColor(201, 162, 39);
+  doc.setLineWidth(0.8);
+  doc.line(0, 55, W, 55);
+
+  // Header text
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('LAKSEND', W / 2, 22, { align: 'center' });
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(180, 180, 180);
+  doc.text('Blockchain Wallet · Transaction Receipt', W / 2, 30, { align: 'center' });
+
+  // Amount block
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...typeColor);
+  doc.text(`${sign}${amount} LKRt`, W / 2, 47, { align: 'center' });
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(160, 160, 160);
+  doc.text(typeLabel, W / 2, 53, { align: 'center' });
+
+  // Body — detail rows
+  let y = 68;
+  const rows = [
+    ['Reference',  refId],
+    ['Date & Time', currentSlipData.timestamp],
+    ['From',        currentSlipData.senderName],
+    ['To',          currentSlipData.receiverName],
+    ['Sender Address', currentSlipData.senderAddress ? currentSlipData.senderAddress.substring(0, 24) + '...' : 'N/A'],
+    ['Receiver Address', currentSlipData.receiverAddress ? currentSlipData.receiverAddress.substring(0, 24) + '...' : 'N/A'],
+    ['Block Number', `#${currentSlipData.blockIndex}`],
+    ['Network',     'LAKSEND Blockchain'],
+  ];
+
+  rows.forEach(([label, value], i) => {
+    const bg = i % 2 === 0 ? [248, 250, 253] : [255, 255, 255];
+    doc.setFillColor(...bg);
+    doc.roundedRect(8, y - 5, W - 16, 11, 1, 1, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(label, 14, y + 1);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(11, 20, 55);
+    doc.text(String(value), W - 14, y + 1, { align: 'right' });
+
+    y += 13;
+  });
+
+  // Footer
+  y += 6;
+  doc.setDrawColor(226, 232, 244);
+  doc.setLineWidth(0.3);
+  doc.line(8, y, W - 8, y);
+  y += 7;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text('This is an official LAKSEND transaction receipt.', W / 2, y, { align: 'center' });
+  doc.text('Blockchain-verified · Immutable · Tamper-proof', W / 2, y + 5, { align: 'center' });
+
+  const filename = `LAKSEND_Receipt_${refId}.pdf`;
+  doc.save(filename);
+  showNotification('success', '✅ PDF Downloaded', `Receipt saved as ${filename}`);
+  closeSlipModalDirect();
 }
 
 // ========== TRANSACTION MONITORING ==========
