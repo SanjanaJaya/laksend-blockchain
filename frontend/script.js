@@ -1,4 +1,4 @@
-const API_URL = 'https://your-app.up.railway.app';
+const API_URL = 'https://laksend-blockchain-production.up.railway.app';
 
 let currentUser = null;
 let supportedCurrencies = [];
