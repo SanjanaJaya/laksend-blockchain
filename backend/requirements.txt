@@ -3,6 +3,7 @@ uvicorn==0.32.1
 ecdsa==0.19.0
 cryptography==44.0.0
 pydantic==2.10.2
+pydantic[email]
 supabase
 requests
 python-multipart
