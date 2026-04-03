@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:8000';
+const API_URL = 'https://your-app.up.railway.app';
 
 let currentUser = null;
 let supportedCurrencies = [];
