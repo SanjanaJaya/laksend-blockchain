@@ -65,7 +65,12 @@
   --mobile-nav-h: 72px;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Lock viewport like a native app */
+  height: 100%;
+  overflow: hidden;
+}
 
 body {
   font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -74,9 +79,51 @@ body {
   line-height: 1.65;
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
-  /* Prevent overscroll bounce on iOS from showing white background */
+  height: 100%;
+  overflow: hidden;
+  /* Prevent overscroll bounce on iOS */
   overscroll-behavior: none;
+  /* Disable text selection globally — native app feel */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  /* Disable callout (long-press context menu) on iOS */
+  -webkit-touch-callout: none;
+  /* Disable tap highlight everywhere */
+  -webkit-tap-highlight-color: transparent;
+  /* Prevent pull-to-refresh */
+  touch-action: pan-y;
+}
+
+/* Allow text selection only inside inputs and content areas */
+input, textarea, select,
+.profile-item .value,
+.mobile-wallet-address,
+#wallet-address {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* The app root fills the full screen like a native app */
+#app-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+}
+
+/* All buttons get touch-action: manipulation to remove 300ms tap delay */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Inputs get pan-x so horizontal scroll inside inputs still works */
+input, textarea, select {
+  touch-action: pan-x;
 }
 
 ::-webkit-scrollbar            { width: 5px; height: 5px; }
@@ -91,14 +138,9 @@ body {
    AUTH SECTION
 ======================================================== */
 .auth-section {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
   display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-  padding-top: max(24px, env(safe-area-inset-top));
-  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  flex-direction: column;
   background:
     radial-gradient(ellipse 70% 50% at 15% 0%, rgba(11,20,55,0.85) 0%, transparent 65%),
     radial-gradient(ellipse 60% 60% at 85% 100%, rgba(201,162,39,0.12) 0%, transparent 60%),
@@ -135,6 +177,20 @@ body {
 
 .auth-section.active { display: flex; }
 
+/* Desktop: centered card. Mobile: full-screen scroll sheet */
+.auth-scroll-wrap {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 24px) 16px env(safe-area-inset-bottom, 24px);
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
 .auth-container {
   max-width: 460px;
   width: 100%;
@@ -145,6 +201,8 @@ body {
   position: relative;
   z-index: 1;
   animation: authSlideIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+  /* Ensure it's always fully visible */
+  margin: auto 0;
 }
 
 @keyframes authSlideIn {
@@ -409,16 +467,15 @@ select {
 .dashboard-section {
   display: none;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
 }
 
 .dashboard-section.active { display: flex; }
 
 /* Topbar */
 .topbar {
-  position: fixed;
-  top: 0; left: 0; right: 0;
   height: var(--topbar-h);
   /* Account for iOS notch/status bar */
   padding-top: env(safe-area-inset-top, 0px);
@@ -432,6 +489,7 @@ select {
   padding-right: 28px;
   padding-bottom: 0;
   box-shadow: 0 2px 20px rgba(11,20,55,0.4);
+  flex-shrink: 0;
 }
 
 .topbar-content {
@@ -522,9 +580,9 @@ select {
 .dashboard-layout {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
-  margin-top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
-  min-height: calc(100vh - var(--topbar-h) - env(safe-area-inset-top, 0px));
-  min-height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top, 0px));
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* Sidebar */
@@ -532,10 +590,9 @@ select {
   background: var(--bg-card);
   border-right: 1px solid var(--border);
   padding: 28px 16px;
-  position: sticky;
-  top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
-  height: calc(100vh - var(--topbar-h) - env(safe-area-inset-top, 0px));
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
 }
 
 .sidebar-title {
@@ -588,6 +645,10 @@ select {
 .content {
   padding: 28px 32px;
   max-width: 900px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  height: 100%;
 }
 
 /* Pages */
@@ -1005,14 +1066,14 @@ select {
 /* ========== NOTIFICATIONS ========== */
 .notification-container {
   position: fixed;
-  top: calc(var(--topbar-h) + env(safe-area-inset-top) + 16px);
+  top: max(16px, env(safe-area-inset-top));
   right: 20px;
   z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: 10px;
   max-width: 340px;
-  width: 100%;
+  width: calc(100% - 32px);
   pointer-events: none;
 }
 
@@ -1115,17 +1176,12 @@ select {
 ======================================================== */
 .mobile-nav {
   display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   background: var(--navy);
   border-top: 1px solid rgba(201,162,39,0.20);
   box-shadow: 0 -4px 32px rgba(11,20,55,0.4);
   z-index: 200;
   /* iOS safe area for home indicator */
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  /* Prevent any accidental shrink */
   flex-shrink: 0;
 }
 
@@ -1368,9 +1424,8 @@ select:focus-visible {
   .dashboard-layout { grid-template-columns: 1fr; }
   .sidebar          { display: none; }
   .mobile-nav       { display: flex; flex-direction: column; }
-  .content          {
+  .content      {
     padding: 20px 20px;
-    padding-bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
     max-width: 100%;
   }
   .stats-row        { grid-template-columns: 1fr 1fr; }
@@ -1405,16 +1460,21 @@ select:focus-visible {
     --mobile-nav-h: 60px;
   }
   body { font-size: 14px; }
-  .auth-section { padding: 0; align-items: flex-end; }
+  /* Auth - full screen scroll on small phones */
+  .auth-scroll-wrap {
+    align-items: flex-start;
+    padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
   .auth-container {
-    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    border-radius: var(--r-xl);
     max-width: 100%;
-    max-height: 96dvh;
-    overflow-y: auto;
+    margin: 0;
     animation: authSlideUp 0.4s cubic-bezier(0.34,1.20,0.64,1) both;
   }
   @keyframes authSlideUp {
-    from { opacity:0; transform: translateY(60px); }
+    from { opacity:0; transform: translateY(40px); }
     to   { opacity:1; transform: translateY(0); }
   }
   .auth-header  { padding: 28px 20px 22px; }
@@ -1422,7 +1482,6 @@ select:focus-visible {
   .auth-body    { padding: 20px 18px 24px; }
   .content      {
     padding: 12px 12px;
-    padding-bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
   }
   .page-card    { padding: 16px; border-radius: var(--r-md); }
   .page-card h2 { font-size: 15px; margin-bottom: 12px; }

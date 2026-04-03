@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <title>LAKSEND — Blockchain Wallet</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="LAKSEND — Secure blockchain wallet. Instant transfers, live FX conversion." />
   <meta name="theme-color" content="#0B1437" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="LAKSEND" />
+  <!-- Prevent iOS text size adjustment -->
+  <meta name="format-detection" content="telephone=no" />
 
   <!-- Web App Manifest (PWA) -->
   <link rel="manifest" href="manifest.json" />
@@ -17,6 +19,11 @@
   <!-- Favicon / App Icons -->
   <link rel="icon" type="image/png" href="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png" />
   <link rel="apple-touch-icon" href="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png" />
+
+  <!-- Critical: prevent white flash before CSS loads -->
+  <style>
+    html, body { background: #0B1437; margin: 0; padding: 0; height: 100%; overflow: hidden; }
+  </style>
 
   <link rel="stylesheet" href="style.css" />
   <!-- jsPDF for slip generation -->
@@ -27,6 +34,7 @@
 
     <!-- ================= AUTH SECTION ================= -->
     <section id="auth-section" class="auth-section active">
+      <div class="auth-scroll-wrap">
       <div class="auth-container">
         <div class="auth-header">
           <img
@@ -119,6 +127,7 @@
           </div>
         </div>
       </div>
+      </div><!-- /.auth-scroll-wrap -->
     </section>
 
     <!-- ================= DASHBOARD SECTION ================= -->
