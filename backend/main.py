@@ -4,10 +4,9 @@ from pydantic import BaseModel, EmailStr
 import hashlib
 from typing import List
 import random
-import smtplib
+import requests as http_requests
 import time
 from datetime import datetime
-from email.mime.text import MIMEText
 
 from blockchain import Blockchain
 from wallet import Wallet
@@ -41,10 +40,10 @@ SUPPORTED_CURRENCIES: List[str] = [
 
 # ================= EMAIL / OTP CONFIG =================
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
+BREVO_API_KEY = "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"
+BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
 APP_EMAIL = "laksend.lk@gmail.com"
-APP_EMAIL_PASSWORD = "zami qdsh wvvy chyj"  # app password
+APP_EMAIL_NAME = "LAKSEND"
 
 
 def send_otp_email(to_email: str, full_name: str, otp_code: str):
@@ -90,16 +89,28 @@ def send_otp_email(to_email: str, full_name: str, otp_code: str):
 </body>
 </html>
 """
-    msg = MIMEText(body, "html")
-    msg["Subject"] = subject
-    msg["From"] = APP_EMAIL
-    msg["To"] = to_email
+    payload = {
+        "sender": {"name": APP_EMAIL_NAME, "email": APP_EMAIL},
+        "to": [{"email": to_email, "name": full_name}],
+        "subject": subject,
+        "htmlContent": body,
+    }
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": BREVO_API_KEY,
+    }
 
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(APP_EMAIL, APP_EMAIL_PASSWORD)
-            server.send_message(msg)
+        response = http_requests.post(BREVO_SEND_URL, json=payload, headers=headers)
+        if response.status_code not in (200, 201):
+            print(f"Brevo OTP email error: {response.status_code} {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send OTP email",
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Failed to send OTP email: {e}")
         raise HTTPException(
@@ -164,15 +175,23 @@ def send_receipt_email(to_email: str, fullname: str, amount: float, sender_name:
 </body>
 </html>
 """
-    msg = MIMEText(body, "html")
-    msg["Subject"] = subject
-    msg["From"] = APP_EMAIL
-    msg["To"] = to_email
+    payload = {
+        "sender": {"name": APP_EMAIL_NAME, "email": APP_EMAIL},
+        "to": [{"email": to_email, "name": fullname}],
+        "subject": subject,
+        "htmlContent": body,
+    }
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": BREVO_API_KEY,
+    }
+
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(APP_EMAIL, APP_EMAIL_PASSWORD)
-            server.send_message(msg)
+        response = http_requests.post(BREVO_SEND_URL, json=payload, headers=headers)
+        if response.status_code not in (200, 201):
+            print(f"Brevo receipt email error: {response.status_code} {response.text}")
+        # Non-fatal: don't raise, just log
     except Exception as e:
         print(f"Failed to send receipt email: {e}")
         # Non-fatal: don't raise, just log
