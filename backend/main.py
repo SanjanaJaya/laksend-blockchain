@@ -15,7 +15,7 @@ from transaction import Transaction
 from database import Database
 from smart_contract import conversion_contract
 
-app = FastAPI(title="LKRt Blockchain API with Proof of Work")
+app = FastAPI(title="LAKSEND Blockchain API with Proof of Work")
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -41,23 +41,56 @@ SUPPORTED_CURRENCIES: List[str] = [
 
 # ================= EMAIL / OTP CONFIG =================
 
-SMTP_HOST = "smtp.gmail.com"  # change if not using Gmail
+SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
-APP_EMAIL = "laksend.lk@gmail.com"  # TODO: put your app email
-APP_EMAIL_PASSWORD = "zami qdsh wvvy chyj"  # TODO: app password (not normal login)
+APP_EMAIL = "laksend.lk@gmail.com"
+APP_EMAIL_PASSWORD = "zami qdsh wvvy chyj"  # app password
 
 
 def send_otp_email(to_email: str, full_name: str, otp_code: str):
-    subject = "Your LKRt Wallet OTP Verification Code"
-    body = (
-        f"Hi {full_name},\n\n"
-        f"Your OTP code is: {otp_code}\n"
-        "It is valid for this signup session.\n\n"
-        "If you did not request this, please ignore this email.\n\n"
-        "LKRt Wallet Team"
-    )
-
-    msg = MIMEText(body)
+    subject = "Your LAKSEND Wallet OTP Verification Code"
+    body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {{ font-family: Arial, sans-serif; background: #f4f6fb; margin: 0; padding: 0; }}
+    .container {{ max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(11,20,55,0.10); }}
+    .header {{ background: linear-gradient(135deg, #0B1437 0%, #152060 100%); padding: 36px 32px; text-align: center; border-bottom: 3px solid #C9A227; }}
+    .header h1 {{ color: #F0C040; margin: 0; font-size: 28px; letter-spacing: 2px; font-weight: 800; }}
+    .header p {{ color: rgba(255,255,255,0.70); margin: 8px 0 0; font-size: 13px; }}
+    .body {{ padding: 36px 32px; }}
+    .otp-box {{ background: #F4F6FB; border: 2px dashed #C9A227; border-radius: 12px; text-align: center; padding: 28px; margin: 24px 0; }}
+    .otp-box .label {{ font-size: 12px; color: #94A3B8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }}
+    .otp-box .code {{ font-size: 46px; font-weight: 800; color: #0B1437; letter-spacing: 12px; font-family: 'Courier New', monospace; }}
+    .footer {{ background: #F8FAFD; padding: 18px 32px; text-align: center; font-size: 11.5px; color: #94a3af; border-top: 1px solid #E2E8F4; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>LAKSEND</h1>
+      <p>Blockchain Wallet · Secure · Instant · Trusted</p>
+    </div>
+    <div class="body">
+      <p style="color:#0B1437;font-size:15px;">Hi <strong>{full_name}</strong>,</p>
+      <p style="color:#475569;font-size:14px;margin-bottom:4px;">Your one-time verification code for LAKSEND Wallet is:</p>
+      <div class="otp-box">
+        <div class="label">OTP Verification Code</div>
+        <div class="code">{otp_code}</div>
+      </div>
+      <p style="color:#64748b;font-size:13px;">This code is valid for this session only. Do not share it with anyone.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:16px;">If you did not request this, please ignore this email. Your account remains secure.</p>
+    </div>
+    <div class="footer">
+      LAKSEND &bull; Blockchain-secured payments &bull; laksend.lk@gmail.com
+    </div>
+  </div>
+</body>
+</html>
+"""
+    msg = MIMEText(body, "html")
     msg["Subject"] = subject
     msg["From"] = APP_EMAIL
     msg["To"] = to_email
@@ -76,54 +109,56 @@ def send_otp_email(to_email: str, full_name: str, otp_code: str):
 
 
 def send_receipt_email(to_email: str, fullname: str, amount: float, sender_name: str, tx_hash: str, block_index: int, timestamp: str):
-    subject = "💸 You received LKRt – Payment Receipt"
+    subject = "💸 You received LKRt – LAKSEND Payment Receipt"
     body = f"""
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <style>
-    body {{ font-family: Arial, sans-serif; background: #f4f7fa; margin: 0; padding: 0; }}
-    .container {{ max-width: 580px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
-    .header {{ background: linear-gradient(135deg, #6c63ff, #3ecf8e); padding: 36px 32px; text-align: center; }}
-    .header h1 {{ color: #fff; margin: 0; font-size: 26px; letter-spacing: 1px; }}
-    .header p {{ color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 14px; }}
+    body {{ font-family: Arial, sans-serif; background: #f4f6fb; margin: 0; padding: 0; }}
+    .container {{ max-width: 580px; margin: 40px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(11,20,55,0.10); }}
+    .header {{ background: linear-gradient(135deg, #0B1437 0%, #152060 100%); padding: 36px 32px; text-align: center; border-bottom: 3px solid #C9A227; }}
+    .header h1 {{ color: #F0C040; margin: 0; font-size: 28px; letter-spacing: 2px; font-weight: 800; }}
+    .header p {{ color: rgba(255,255,255,0.70); margin: 8px 0 0; font-size: 13px; }}
     .body {{ padding: 32px; }}
-    .amount-box {{ background: #f0fdf4; border: 2px solid #3ecf8e; border-radius: 10px; text-align: center; padding: 24px; margin-bottom: 28px; }}
-    .amount-box .label {{ font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }}
-    .amount-box .amount {{ font-size: 42px; font-weight: 700; color: #16a34a; margin: 8px 0 0; }}
+    .amount-box {{ background: #f0fdf4; border: 2px solid #10b981; border-radius: 12px; text-align: center; padding: 26px; margin-bottom: 28px; }}
+    .amount-box .label {{ font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
+    .amount-box .amount {{ font-size: 44px; font-weight: 800; color: #10b981; }}
+    .amount-box .currency {{ font-size: 20px; color: #065f46; }}
     .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 24px; }}
-    .details-table td {{ padding: 10px 4px; font-size: 14px; border-bottom: 1px solid #f3f4f6; }}
-    .details-table td:first-child {{ color: #6b7280; font-weight: 500; width: 40%; }}
-    .details-table td:last-child {{ color: #111827; font-weight: 600; word-break: break-all; }}
-    .footer {{ background: #f9fafb; padding: 20px 32px; text-align: center; font-size: 12px; color: #9ca3af; }}
-    .badge {{ display: inline-block; background: #dcfce7; color: #15803d; font-size: 12px; font-weight: 700; border-radius: 20px; padding: 4px 14px; margin-bottom: 16px; letter-spacing: 0.5px; }}
+    .details-table td {{ padding: 11px 6px; font-size: 13.5px; border-bottom: 1px solid #f1f5f9; }}
+    .details-table td:first-child {{ color: #64748b; font-weight: 600; width: 38%; }}
+    .details-table td:last-child {{ color: #0B1437; font-weight: 700; word-break: break-all; }}
+    .badge {{ display: inline-block; background: #dcfce7; color: #15803d; font-size: 12px; font-weight: 700; border-radius: 20px; padding: 5px 16px; margin-bottom: 18px; letter-spacing: 0.5px; }}
+    .footer {{ background: #F8FAFD; padding: 20px 32px; text-align: center; font-size: 11.5px; color: #94a3af; border-top: 1px solid #E2E8F4; }}
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>LKRt Wallet</h1>
-      <p>Payment Receipt</p>
+      <h1>LAKSEND</h1>
+      <p>Blockchain Wallet · Payment Receipt</p>
     </div>
     <div class="body">
-      <p style="color:#374151;font-size:15px;">Hi <strong>{fullname}</strong>,</p>
-      <p style="color:#6b7280;font-size:14px;margin-bottom:20px;">You have successfully received a payment on the LKRt blockchain.</p>
+      <p style="color:#0B1437;font-size:15px;">Hi <strong>{fullname}</strong>,</p>
+      <p style="color:#475569;font-size:14px;margin-bottom:20px;">You have successfully received a payment on the LAKSEND blockchain.</p>
       <div class="amount-box">
         <div class="label">Amount Received</div>
-        <div class="amount">+{amount:.2f} <span style="font-size:22px;color:#16a34a;">LKRt</span></div>
+        <div class="amount">+{amount:.2f} <span class="currency">LKRt</span></div>
       </div>
-      <span class="badge">✅ CONFIRMED ON BLOCKCHAIN</span>
+      <span class="badge">✅ CONFIRMED ON LAKSEND BLOCKCHAIN</span>
       <table class="details-table">
         <tr><td>From</td><td>{sender_name}</td></tr>
         <tr><td>Block #</td><td>{block_index}</td></tr>
         <tr><td>Transaction ID</td><td>{tx_hash}</td></tr>
-        <tr><td>Date & Time</td><td>{timestamp}</td></tr>
+        <tr><td>Date &amp; Time</td><td>{timestamp}</td></tr>
+        <tr><td>Network</td><td>LAKSEND Blockchain</td></tr>
       </table>
-      <p style="font-size:13px;color:#9ca3af;">This is an automated receipt. Please keep it for your records.</p>
+      <p style="font-size:12.5px;color:#94a3b8;">This is an automated receipt from LAKSEND. Please keep it for your records.</p>
     </div>
     <div class="footer">
-      LKRt Wallet &bull; Blockchain-secured payments &bull; Do not reply to this email.
+      LAKSEND &bull; Blockchain-secured payments &bull; Do not reply to this email.
     </div>
   </div>
 </body>
@@ -205,7 +240,7 @@ class MineRequest(BaseModel):
 @app.get("/")
 def read_root():
     return {
-        "message": "LKRt Blockchain API with Proof of Work Mining",
+        "message": "LAKSEND Blockchain API with Proof of Work Mining",
         "version": "2.2",
         "features": [
             "PoW Mining",
@@ -418,7 +453,7 @@ def request_transfer_otp(request: TransferOtpRequestModel):
         "expires": time.time() + 300  # 5-minute expiry
     }
     fullname = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
-    send_otp_email(user.get("email"), fullname, otp_code)  # reuse existing function
+    send_otp_email(user.get("email"), fullname, otp_code)
     return {"message": "OTP sent to your registered email. Valid for 5 minutes."}
 
 
@@ -535,7 +570,7 @@ def transfer(request: TransferRequest):
                 timestamp_str,
             )
         except Exception as e:
-            print(f"Receipt email failed: {e}")  # Log but don't fail the transfer
+            print(f"Receipt email failed: {e}")
 
     return {
         "message": "Transfer successful",

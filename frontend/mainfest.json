@@ -1,0 +1,26 @@
+{
+  "name": "LAKSEND — Blockchain Wallet",
+  "short_name": "LAKSEND",
+  "description": "Secure blockchain wallet. Instant transfers, live FX conversion.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1437",
+  "theme_color": "#0B1437",
+  "icons": [
+    {
+      "src": "https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "utilities"],
+  "lang": "en"
+}
