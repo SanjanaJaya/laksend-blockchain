@@ -8,6 +8,7 @@ let allTransactions = [];
 let pendingTransferData = null;
 let currentPortfolio = {}; // Store portfolio data globally
 let pendingSignupUser = null; // store username for OTP verification
+let pendingResetEmail = null; // store email across password reset steps
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -78,6 +79,11 @@ function showTab(tabName) {
     document.querySelector(`.tab-btn[data-tab="${tabName}"]`) ||
     document.querySelector(`.tab-btn[data-page="${tabName}"]`);
   if (btn) btn.classList.add('active');
+
+  // When leaving forgot-password tab, reset to step 1
+  if (tabName !== 'forgot-password' && typeof showFpStep === 'function') {
+    showFpStep(1);
+  }
 }
 
 // ========== SESSION MANAGEMENT ==========
@@ -818,6 +824,194 @@ async function processAndDisplayTransactions(transactions, containerId = 'transa
     `;
     container.appendChild(txElement);
   });
+}
+
+// ========== PASSWORD RESET ==========
+// Helper: show only the correct step panel
+function showFpStep(step) {
+  document.getElementById('fp-step-1').style.display = step === 1 ? 'block' : 'none';
+  document.getElementById('fp-step-2').style.display = step === 2 ? 'block' : 'none';
+  document.getElementById('fp-step-3').style.display = step === 3 ? 'block' : 'none';
+}
+
+// Helper: set a button to loading / restore it
+function setFpBtnLoading(btnId, loading, label) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.textContent = loading ? 'Please wait…' : label;
+}
+
+async function forgotPassword() {
+  const email = document.getElementById('fp-email').value.trim();
+  if (!email) {
+    showNotification('error', 'Validation Error', 'Please enter your email address');
+    return;
+  }
+
+  setFpBtnLoading('fp-send-btn', true, 'Send Reset Code');
+  try {
+    const response = await fetch(`${API_URL}/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    // Always parse the response body
+    let data = {};
+    try { data = await response.json(); } catch (_) {}
+
+    if (response.ok) {
+      pendingResetEmail = email;
+      showNotification('info', 'Code Sent', 'If that email is registered, a reset code has been sent.');
+      document.getElementById('fp-otp').value = '';
+      showFpStep(2);
+      document.getElementById('fp-otp').focus();
+    } else {
+      // Server returned an error (e.g. account not verified)
+      showNotification('error', 'Error', data.detail || 'Could not send reset code');
+    }
+  } catch (error) {
+    console.error('forgotPassword error:', error);
+    showNotification('error', 'Connection Error', 'Could not connect to server. Please try again.');
+  } finally {
+    setFpBtnLoading('fp-send-btn', false, 'Send Reset Code');
+  }
+}
+
+async function resendResetCode() {
+  // Allow resend from step 2 — re-uses the same email
+  if (!pendingResetEmail) {
+    showNotification('error', 'Session Error', 'No reset in progress. Please start again.');
+    showFpStep(1);
+    return;
+  }
+
+  setFpBtnLoading('fp-resend-btn', true, 'Resend code');
+  try {
+    const response = await fetch(`${API_URL}/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pendingResetEmail }),
+    });
+
+    let data = {};
+    try { data = await response.json(); } catch (_) {}
+
+    if (response.ok) {
+      showNotification('info', 'Code Resent', 'A new reset code has been sent to your email.');
+      document.getElementById('fp-otp').value = '';
+      document.getElementById('fp-otp').focus();
+    } else {
+      showNotification('error', 'Error', data.detail || 'Could not resend code');
+    }
+  } catch (error) {
+    console.error('resendResetCode error:', error);
+    showNotification('error', 'Connection Error', 'Could not connect to server.');
+  } finally {
+    setFpBtnLoading('fp-resend-btn', false, 'Resend code');
+  }
+}
+
+async function verifyResetOtp() {
+  const otp = document.getElementById('fp-otp').value.trim();
+  if (!otp || otp.length !== 6) {
+    showNotification('error', 'Validation Error', 'Please enter the 6-digit code');
+    return;
+  }
+  if (!pendingResetEmail) {
+    showNotification('error', 'Session Error', 'No reset in progress. Please start again.');
+    showFpStep(1);
+    return;
+  }
+
+  setFpBtnLoading('fp-verify-btn', true, 'Verify Code');
+  try {
+    const response = await fetch(`${API_URL}/verify-reset-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pendingResetEmail, otp_code: otp }),
+    });
+
+    let data = {};
+    try { data = await response.json(); } catch (_) {}
+
+    if (response.ok) {
+      showNotification('success', 'Code Verified', 'OTP confirmed. Set your new password below.');
+      showFpStep(3);
+      document.getElementById('fp-new-password').focus();
+    } else {
+      showNotification('error', 'Invalid Code', data.detail || 'OTP verification failed');
+    }
+  } catch (error) {
+    console.error('verifyResetOtp error:', error);
+    showNotification('error', 'Connection Error', 'Could not connect to server.');
+  } finally {
+    setFpBtnLoading('fp-verify-btn', false, 'Verify Code');
+  }
+}
+
+async function resetPassword() {
+  const newPassword = document.getElementById('fp-new-password').value;
+  const confirmPassword = document.getElementById('fp-confirm-password').value;
+
+  if (!newPassword || newPassword.length < 8) {
+    showNotification('error', 'Validation Error', 'Password must be at least 8 characters');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    showNotification('error', 'Validation Error', 'Passwords do not match');
+    return;
+  }
+  if (!pendingResetEmail) {
+    showNotification('error', 'Session Error', 'No reset in progress. Please start again.');
+    showFpStep(1);
+    return;
+  }
+
+  // We still need the OTP from step 2 — the server re-verifies it
+  const otp = document.getElementById('fp-otp').value.trim();
+  if (!otp) {
+    showNotification('error', 'Session Error', 'OTP missing. Please go back and verify your code again.');
+    showFpStep(2);
+    return;
+  }
+
+  setFpBtnLoading('fp-reset-btn', true, 'Reset Password');
+  try {
+    const response = await fetch(`${API_URL}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: pendingResetEmail,
+        otp_code: otp,
+        new_password: newPassword,
+      }),
+    });
+
+    let data = {};
+    try { data = await response.json(); } catch (_) {}
+
+    if (response.ok) {
+      showNotification('success', '✅ Password Reset', 'Your password has been reset. Please log in.');
+
+      // Clear all reset state
+      pendingResetEmail = null;
+      document.getElementById('fp-email').value = '';
+      document.getElementById('fp-otp').value = '';
+      document.getElementById('fp-new-password').value = '';
+      document.getElementById('fp-confirm-password').value = '';
+      showFpStep(1);
+      showTab('login');
+    } else {
+      showNotification('error', 'Reset Failed', data.detail || 'Could not reset password');
+    }
+  } catch (error) {
+    console.error('resetPassword error:', error);
+    showNotification('error', 'Connection Error', 'Could not connect to server.');
+  } finally {
+    setFpBtnLoading('fp-reset-btn', false, 'Reset Password');
+  }
 }
 
 // ========== PDF SLIP ==========

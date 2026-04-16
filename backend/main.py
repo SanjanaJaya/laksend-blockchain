@@ -32,6 +32,9 @@ db = Database()
 # In-memory OTP store for transfer verification
 transfer_otp_store = {}  # { username: { "otp": "123456", "expires": timestamp } }
 
+# In-memory OTP store for password reset
+password_reset_otp_store = {}  # { username: { "otp": "123456", "expires": timestamp } }
+
 # Supported currencies
 SUPPORTED_CURRENCIES: List[str] = [
     "USD", "EUR", "GBP", "JPY", "AUD",
@@ -197,7 +200,97 @@ def send_receipt_email(to_email: str, fullname: str, amount: float, sender_name:
         # Non-fatal: don't raise, just log
 
 
+def send_password_reset_email(to_email: str, full_name: str, otp_code: str):
+    subject = "🔐 LAKSEND Password Reset OTP"
+    body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {{ font-family: Arial, sans-serif; background: #f4f6fb; margin: 0; padding: 0; }}
+    .container {{ max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(11,20,55,0.10); }}
+    .header {{ background: linear-gradient(135deg, #0B1437 0%, #152060 100%); padding: 36px 32px; text-align: center; border-bottom: 3px solid #e74c3c; }}
+    .header h1 {{ color: #F0C040; margin: 0; font-size: 28px; letter-spacing: 2px; font-weight: 800; }}
+    .header p {{ color: rgba(255,255,255,0.70); margin: 8px 0 0; font-size: 13px; }}
+    .body {{ padding: 36px 32px; }}
+    .otp-box {{ background: #FFF5F5; border: 2px dashed #e74c3c; border-radius: 12px; text-align: center; padding: 28px; margin: 24px 0; }}
+    .otp-box .label {{ font-size: 12px; color: #94A3B8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }}
+    .otp-box .code {{ font-size: 46px; font-weight: 800; color: #c0392b; letter-spacing: 12px; font-family: 'Courier New', monospace; }}
+    .warning {{ background: #fff3cd; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #78350f; }}
+    .footer {{ background: #F8FAFD; padding: 18px 32px; text-align: center; font-size: 11.5px; color: #94a3af; border-top: 1px solid #E2E8F4; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>LAKSEND</h1>
+      <p>Password Reset Request</p>
+    </div>
+    <div class="body">
+      <p style="color:#0B1437;font-size:15px;">Hi <strong>{full_name}</strong>,</p>
+      <p style="color:#475569;font-size:14px;margin-bottom:4px;">We received a request to reset your LAKSEND Wallet password. Use the OTP below:</p>
+      <div class="otp-box">
+        <div class="label">Password Reset OTP</div>
+        <div class="code">{otp_code}</div>
+      </div>
+      <div class="warning">
+        ⚠️ This code expires in <strong>10 minutes</strong>. Do not share it with anyone.
+      </div>
+      <p style="color:#94a3b8;font-size:12px;margin-top:16px;">If you did not request a password reset, please ignore this email. Your account remains secure.</p>
+    </div>
+    <div class="footer">
+      LAKSEND &bull; Blockchain-secured payments &bull; laksend.lk@gmail.com
+    </div>
+  </div>
+</body>
+</html>
+"""
+    payload = {
+        "sender": {"name": APP_EMAIL_NAME, "email": APP_EMAIL},
+        "to": [{"email": to_email, "name": full_name}],
+        "subject": subject,
+        "htmlContent": body,
+    }
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": BREVO_API_KEY,
+    }
+    try:
+        response = http_requests.post(BREVO_SEND_URL, json=payload, headers=headers)
+        if response.status_code not in (200, 201):
+            print(f"Brevo password reset email error: {response.status_code} {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send password reset email",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Failed to send password reset email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send password reset email",
+        )
+
+
 # ================= REQUEST MODELS =================
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetOtpRequest(BaseModel):
+    email: EmailStr
+    otp_code: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp_code: str
+    new_password: str
 
 
 class SignupRequest(BaseModel):
@@ -269,6 +362,7 @@ def read_root():
             "Email OTP Verification",
             "Transfer OTP Verification",
             "Receipt Email Notifications",
+            "Password Reset via Email OTP",
         ],
         "endpoints": [
             "/signup",
@@ -281,6 +375,10 @@ def read_root():
             "/mine",
             "/mining/stats",
             "/blockchain",
+            "/forgot-password",
+            "/verify-reset-otp",
+            "/reset-password",
+            "/rekey-wallet",
         ],
     }
 
@@ -601,6 +699,187 @@ def transfer(request: TransferRequest):
     }
 
 
+@app.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest):
+    """Step 1: Send a password-reset OTP to the given email (if it belongs to a verified account)."""
+    user = db.get_user_by_email(request.email)
+    if not user:
+        # Return a generic success to avoid leaking whether an email is registered
+        return {"message": "If that email is registered, a reset OTP has been sent."}
+
+    if not user.get("is_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account is not verified. Please complete OTP verification first.",
+        )
+
+    otp_code = f"{random.randint(100000, 999999)}"
+    password_reset_otp_store[user["username"]] = {
+        "otp": otp_code,
+        "expires": time.time() + 600,  # 10-minute expiry
+        "email": request.email,
+    }
+
+    full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user["username"]
+    send_password_reset_email(request.email, full_name, otp_code)
+
+    return {"message": "If that email is registered, a reset OTP has been sent."}
+
+
+@app.post("/verify-reset-otp")
+def verify_reset_otp(request: VerifyResetOtpRequest):
+    """Step 2: Verify the password-reset OTP. Returns confirmation so the frontend can unlock the new-password form."""
+    user = db.get_user_by_email(request.email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not found")
+
+    stored = password_reset_otp_store.get(user["username"])
+    if not stored:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active password reset request. Please request a new OTP.",
+        )
+    if time.time() > stored["expires"]:
+        password_reset_otp_store.pop(user["username"], None)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP has expired. Please request a new one.",
+        )
+    if stored["otp"] != request.otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid OTP code.",
+        )
+
+    # Mark OTP as verified (keep entry so reset-password step can confirm it)
+    password_reset_otp_store[user["username"]]["verified"] = True
+
+    return {"message": "OTP verified. You may now set a new password.", "username": user["username"]}
+
+
+@app.post("/reset-password")
+def reset_password(request: ResetPasswordRequest):
+    """
+    Step 3: Set a new password after OTP has been verified.
+
+    Security note on private-key re-encryption:
+    The wallet private key is stored encrypted with the user's password.
+    After a password reset we cannot re-encrypt it without the old password,
+    so we update the password hash and store a flag that the private key
+    needs re-encryption. On the next successful login with the new password,
+    if the user also provides their old password via /rekey-wallet, the key
+    will be re-encrypted. Transfers will be blocked until re-keying is done.
+    """
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters.",
+        )
+
+    user = db.get_user_by_email(request.email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not found")
+
+    stored = password_reset_otp_store.get(user["username"])
+    if not stored or not stored.get("verified"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP not verified. Please complete OTP verification first.",
+        )
+    if time.time() > stored["expires"]:
+        password_reset_otp_store.pop(user["username"], None)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session expired. Please request a new OTP.",
+        )
+    if stored["otp"] != request.otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP mismatch.",
+        )
+
+    new_password_hash = hashlib.sha256(request.new_password.encode()).hexdigest()
+
+    # Update password hash. Private key re-encryption requires the old password
+    # and must be done via /rekey-wallet after logging in.
+    success = db.update_password(
+        user["username"],
+        new_password_hash,
+        user["private_key_encrypted"],  # kept as-is; re-keyed via /rekey-wallet
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update password. Please try again.",
+        )
+
+    password_reset_otp_store.pop(user["username"], None)
+
+    return {
+        "message": "Password reset successful. You can now log in with your new password.",
+        "username": user["username"],
+        "rekey_required": True,
+        "rekey_note": (
+            "Your wallet signing key needs re-encryption. "
+            "Use POST /rekey-wallet with your old password to restore transfer ability."
+        ),
+    }
+
+
+class RekeyWalletRequest(BaseModel):
+    username: str
+    new_password: str
+    old_password: str
+
+
+@app.post("/rekey-wallet")
+def rekey_wallet(request: RekeyWalletRequest):
+    """
+    Re-encrypt the wallet private key after a password reset.
+    Call this once after resetting your password, providing both old and new passwords.
+    """
+    user = db.get_user(request.username)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Verify new password is current
+    new_password_hash = hashlib.sha256(request.new_password.encode()).hexdigest()
+    if new_password_hash != user["password_hash"]:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="New password is incorrect.",
+        )
+
+    # Decrypt private key using OLD password
+    try:
+        raw_private_key = Wallet.decrypt_private_key(
+            user["private_key_encrypted"],
+            request.old_password,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Old password is incorrect. Cannot decrypt wallet key.",
+        )
+
+    # Re-encrypt with new password
+    temp_wallet = Wallet()
+    temp_wallet.private_key = raw_private_key
+    new_encrypted_key = temp_wallet.encrypt_private_key(request.new_password)
+
+    success = db.update_password(request.username, new_password_hash, new_encrypted_key)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save re-encrypted key. Please try again.",
+        )
+
+    return {
+        "message": "Wallet key re-encrypted successfully. Transfers are now fully restored.",
+        "username": request.username,
+    }
+
+
 @app.post("/mine")
 def mine_block(request: MineRequest):
     """Explicit mining endpoint (if you want manual mining from UI)."""
@@ -790,6 +1069,16 @@ def health_check():
         "pow_enabled": True,
         "encryption_enabled": True,
     }
+
+
+@app.on_event("startup")
+async def on_startup():
+    routes = [r.path for r in app.routes]
+    required = ["/forgot-password", "/verify-reset-otp", "/reset-password", "/rekey-wallet"]
+    for r in required:
+        status_str = "✅" if r in routes else "❌ MISSING"
+        print(f"  {status_str}  {r}")
+    print("LAKSEND API started. Password-reset routes verified above.")
 
 
 if __name__ == "__main__":

@@ -65,6 +65,56 @@
                 <input type="password" id="login-password" placeholder="Your password" autocomplete="current-password" />
               </div>
               <button class="primary-btn" onclick="login()">Login to Wallet</button>
+              <div style="text-align:center;margin-top:14px;">
+                <button class="link-btn" style="font-size:13px;color:#C9A227;" onclick="showTab('forgot-password')">Forgot password?</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- FORGOT PASSWORD TAB -->
+          <div id="forgot-password-tab" class="tab-content">
+            <div class="auth-card">
+
+              <!-- Step 1: Enter email -->
+              <div id="fp-step-1">
+                <p style="font-size:13px;color:#475569;margin-bottom:16px;">Enter your registered email address and we'll send you a reset code.</p>
+                <div class="form-group">
+                  <label for="fp-email">Email address</label>
+                  <input type="email" id="fp-email" placeholder="you@example.com" autocomplete="email" />
+                </div>
+                <button id="fp-send-btn" class="primary-btn" onclick="forgotPassword()">Send Reset Code</button>
+                <div style="text-align:center;margin-top:14px;">
+                  <button class="link-btn" style="font-size:13px;" onclick="showTab('login')">← Back to login</button>
+                </div>
+              </div>
+
+              <!-- Step 2: Enter OTP -->
+              <div id="fp-step-2" style="display:none;">
+                <p style="font-size:13px;color:#475569;margin-bottom:16px;">Enter the 6-digit code sent to your email. It expires in 10 minutes.</p>
+                <div class="form-group">
+                  <label>Reset OTP</label>
+                  <input type="text" id="fp-otp" placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric" />
+                </div>
+                <button id="fp-verify-btn" class="primary-btn" onclick="verifyResetOtp()">Verify Code</button>
+                <div style="text-align:center;margin-top:14px;">
+                  <button id="fp-resend-btn" class="link-btn" style="font-size:13px;color:#C9A227;" onclick="resendResetCode()">Resend code</button>
+                </div>
+              </div>
+
+              <!-- Step 3: Set new password -->
+              <div id="fp-step-3" style="display:none;">
+                <p style="font-size:13px;color:#475569;margin-bottom:16px;">Choose a strong new password (minimum 8 characters).</p>
+                <div class="form-group">
+                  <label for="fp-new-password">New password</label>
+                  <input type="password" id="fp-new-password" placeholder="New password (min 8 chars)" autocomplete="new-password" />
+                </div>
+                <div class="form-group">
+                  <label for="fp-confirm-password">Confirm new password</label>
+                  <input type="password" id="fp-confirm-password" placeholder="Repeat new password" autocomplete="new-password" />
+                </div>
+                <button id="fp-reset-btn" class="primary-btn gold-btn" onclick="resetPassword()">Reset Password</button>
+              </div>
+
             </div>
           </div>
 

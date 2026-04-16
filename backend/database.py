@@ -132,3 +132,43 @@ class Database:
         if not user:
             return False
         return bool(user.get("is_verified", False))
+
+    def get_user_by_email(self, email):
+        """Get user by email address"""
+        try:
+            query = supabase.table("users").select("*").eq("email", email).execute()
+            result = query.data
+            if result:
+                user = result[0]
+                return {
+                    "username": user["username"],
+                    "email": user.get("email"),
+                    "wallet_address": user["wallet_address"],
+                    "public_key": user["public_key"],
+                    "private_key_encrypted": user["private_key_encrypted"],
+                    "password_hash": user["password_hash"],
+                    "is_verified": user.get("is_verified", False),
+                    "first_name": user.get("first_name"),
+                    "last_name": user.get("last_name"),
+                }
+            return None
+        except Exception as e:
+            print(f"Database error: {e}")
+            return None
+
+    def update_password(self, username: str, new_password_hash: str, new_encrypted_private_key: str) -> bool:
+        """Update user's password hash and re-encrypted private key"""
+        try:
+            resp = (
+                supabase.table("users")
+                .update({
+                    "password_hash": new_password_hash,
+                    "private_key_encrypted": new_encrypted_private_key,
+                })
+                .eq("username", username)
+                .execute()
+            )
+            return bool(resp.data)
+        except Exception as e:
+            print(f"Database error: {e}")
+            return False
