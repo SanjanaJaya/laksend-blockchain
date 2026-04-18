@@ -310,42 +310,41 @@ function logout() {
 
 // ========== PROFILE LOADING ==========
 async function loadProfile(username) {
-  try {
-    const response = await fetch(`${API_URL}/user/${username}`);
-    if (!response.ok) return;
-    const data = await response.json();
+    try {
+        const response = await fetch(`${API_URL}/user/${username}`);
+        if (!response.ok) return;
+        const data = await response.json();
 
-    const fullName =
-      data.full_name ||
-      `${data.first_name || ''} ${data.last_name || ''}`.trim() ||
-      data.username;
+        const firstNameEl = document.getElementById('profile-first-name');
+        if (firstNameEl) firstNameEl.textContent = data.firstname || '';
 
-    const fullNameEl = document.getElementById('profile-full-name');
-    if (fullNameEl) fullNameEl.textContent = fullName || '-';
+        const lastNameEl = document.getElementById('profile-last-name');
+        if (lastNameEl) lastNameEl.textContent = data.lastname || '';
 
-    const userEl = document.getElementById('profile-username');
-    if (userEl) userEl.textContent = data.username || '-';
+        const userEl = document.getElementById('profile-username');
+        if (userEl) userEl.textContent = data.username;
 
-    const emailEl = document.getElementById('profile-email');
-    if (emailEl) emailEl.textContent = data.email || '-';
+        const emailEl = document.getElementById('profile-email');
+        if (emailEl) emailEl.textContent = data.email;
 
-    const nicEl = document.getElementById('profile-nic');
-    if (nicEl) nicEl.textContent = data.nic || '-';
+        const nicEl = document.getElementById('profile-nic');
+        if (nicEl) nicEl.textContent = data.nic;
 
-    const addrEl = document.getElementById('profile-address');
-    if (addrEl) addrEl.textContent = data.address || '-';
+        const addrEl = document.getElementById('profile-address');
+        if (addrEl) addrEl.textContent = data.address;
 
-    const pcEl = document.getElementById('profile-postal-code');
-    if (pcEl) pcEl.textContent = data.postal_code || '-';
+        const pcEl = document.getElementById('profile-postal-code');
+        if (pcEl) pcEl.textContent = data.postalcode;
 
-    const wEl = document.getElementById('profile-wallet-address');
-    if (wEl) wEl.textContent = data.wallet_address || '-';
+        const wEl = document.getElementById('profile-wallet-address');
+        if (wEl) wEl.textContent = data.walletaddress;
 
-    const createdEl = document.getElementById('profile-created-at');
-    if (createdEl) createdEl.textContent = data.created_at || '-';
-  } catch (err) {
-    console.error('Failed to load profile:', err);
-  }
+        const createdEl = document.getElementById('profile-created-at');
+        if (createdEl) createdEl.textContent = data.createdat;
+
+    } catch (err) {
+        console.error('Failed to load profile', err);
+    }
 }
 
 // ========== COPY WALLET ADDRESS ==========
