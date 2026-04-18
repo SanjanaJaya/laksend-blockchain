@@ -478,17 +478,20 @@ def login(request: LoginRequest):
             detail="Incorrect password",
         )
 
-    # Decrypt private key to ensure password is correct and key is usable
+    # Attempt to decrypt the private key with the current password.
+    # After a password reset, the key is still encrypted with the OLD password,
+    # so decryption will fail. In that case we allow login but flag rekey_required=True
+    # so the frontend can prompt the user to call /rekey-wallet with their old password.
+    rekey_required = False
     try:
-        _ = Wallet.decrypt_private_key(
+        Wallet.decrypt_private_key(
             user["private_key_encrypted"],
             request.password,
         )
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to decrypt private key. Data may be corrupted.",
-        )
+        # Key is encrypted with a different (old) password — password was reset.
+        # Login still succeeds; transfers will be blocked until /rekey-wallet is called.
+        rekey_required = True
 
     balance = blockchain.get_balance(user["wallet_address"])
     full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
@@ -507,6 +510,12 @@ def login(request: LoginRequest):
         "postal_code": user.get("postal_code"),
         "email": user.get("email"),
         "created_at": user.get("created_at", "N/A"),
+        "rekey_required": rekey_required,
+        "rekey_note": (
+            "Your wallet key is still encrypted with your old password. "
+            "Call POST /rekey-wallet with your old and new passwords to restore transfers."
+            if rekey_required else None
+        ),
     }
 
 
@@ -623,7 +632,10 @@ def transfer(request: TransferRequest):
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Failed to decrypt private key. Incorrect password.",
+            detail=(
+                "Your wallet key needs re-encryption after your password reset. "
+                "Please call POST /rekey-wallet with your old and new passwords before transferring."
+            ),
         )
 
     # 4. Check sufficient balance
