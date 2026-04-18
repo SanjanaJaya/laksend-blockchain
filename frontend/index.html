@@ -28,6 +28,10 @@
   <link rel="stylesheet" href="style.css" />
   <!-- jsPDF for slip generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- QRCode.js — generate QR codes -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- jsQR — decode QR from camera / image -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 </head>
 <body>
   <div id="app-root">
@@ -315,52 +319,188 @@
           <section id="transfer-page" class="page-content">
             <div class="page-header">
               <h2>Transfer LKRt</h2>
-              <p>Send LKRt to any wallet address instantly</p>
+              <p>Send LKRt to any wallet — manually, by QR scan, or share your QR to receive</p>
             </div>
-            <div class="page-card">
-              <h2>New Transfer</h2>
-              <p class="muted" style="margin-bottom:18px;">⚠️ Blockchain transactions cannot be reversed once confirmed.</p>
 
-              <div class="form-group">
-                <label for="receiver-address">Receiver wallet address</label>
-                <input type="text" id="receiver-address" placeholder="Paste recipient wallet address" onblur="fetchReceiverInfo()" />
+            <!-- ── Tab bar ── -->
+            <div class="page-card qr-tab-card">
+              <div class="transfer-method-tabs">
+                <button class="transfer-tab-btn active" data-ttab="manual"  onclick="switchTransferTab('manual')">✏️ Manual</button>
+                <button class="transfer-tab-btn"        data-ttab="scan"    onclick="switchTransferTab('scan')">📷 Scan QR</button>
+                <button class="transfer-tab-btn"        data-ttab="receive" onclick="switchTransferTab('receive')">📲 My QR</button>
               </div>
+            </div>
 
-              <div id="receiver-info" class="receiver-info"></div>
+            <!-- ══════════════════════════════════════════ -->
+            <!-- MANUAL TAB                                 -->
+            <!-- ══════════════════════════════════════════ -->
+            <div id="transfer-tab-manual" class="transfer-tab-content active">
 
-              <div class="form-group">
-                <label for="transfer-amount">Amount (LKRt)</label>
-                <input type="number" id="transfer-amount" min="0" step="0.01" inputmode="decimal" />
-              </div>
+              <div class="page-card">
+                <h2>New Transfer</h2>
+                <p class="muted" style="margin-bottom:18px;">⚠️ Blockchain transactions cannot be reversed once confirmed.</p>
 
-              <div class="form-group">
-                <label for="transfer-password">Your password</label>
-                <input type="password" id="transfer-password" placeholder="Confirm with your wallet password" />
-              </div>
+                <div class="form-group">
+                  <label for="receiver-address">Receiver wallet address</label>
+                  <input type="text" id="receiver-address" placeholder="Paste recipient wallet address" onblur="fetchReceiverInfo()" />
+                </div>
 
-              <button class="primary-btn" onclick="prepareTransfer()">Continue</button>
+                <div id="receiver-info" class="receiver-info"></div>
 
-              <div id="transfer-confirmation" class="transfer-confirmation" style="display:none;">
-                <h3>⚡ Confirm Transfer</h3>
-                <p id="transfer-summary"></p>
-                <div id="transfer-otp-section" style="display:none;">
-                  <div class="form-group">
-                    <label>Transfer OTP</label>
-                    <p class="muted" style="font-size:12.5px;margin-bottom:8px;">A code has been sent to your registered email.</p>
-                    <input type="text" id="transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" />
+                <div class="form-group">
+                  <label for="transfer-amount">Amount (LKRt)</label>
+                  <input type="number" id="transfer-amount" min="0" step="0.01" inputmode="decimal" />
+                </div>
+
+                <div class="form-group">
+                  <label for="transfer-password">Your password</label>
+                  <input type="password" id="transfer-password" placeholder="Confirm with your wallet password" />
+                </div>
+
+                <button class="primary-btn" onclick="prepareTransfer()">Continue</button>
+
+                <div id="transfer-confirmation" class="transfer-confirmation" style="display:none;">
+                  <h3>⚡ Confirm Transfer</h3>
+                  <p id="transfer-summary"></p>
+                  <div id="transfer-otp-section" style="display:none;">
+                    <div class="form-group">
+                      <label>Transfer OTP</label>
+                      <p class="muted" style="font-size:12.5px;margin-bottom:8px;">A code has been sent to your registered email.</p>
+                      <input type="text" id="transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" />
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:10px;margin-top:8px;">
+                    <button class="primary-btn gold-btn" style="flex:2" onclick="confirmTransfer()">Confirm &amp; Send</button>
+                    <button class="secondary-btn" style="flex:1" onclick="cancelTransfer()">Cancel</button>
                   </div>
                 </div>
-                <div style="display:flex;gap:10px;margin-top:8px;">
-                  <button class="primary-btn gold-btn" style="flex:2" onclick="confirmTransfer()">Confirm &amp; Send</button>
-                  <button class="secondary-btn" style="flex:1" onclick="cancelTransfer()">Cancel</button>
+              </div>
+
+              <div id="favorites-section" class="page-card" style="display:none;">
+                <h2>Favourite Payees</h2>
+                <div id="favorites-list" class="favorites-list"></div>
+              </div>
+
+            </div><!-- /manual tab -->
+
+            <!-- ══════════════════════════════════════════ -->
+            <!-- SCAN QR TAB                                -->
+            <!-- ══════════════════════════════════════════ -->
+            <div id="transfer-tab-scan" class="transfer-tab-content">
+
+              <div class="page-card">
+                <h2>Scan QR to Pay</h2>
+                <p class="muted" style="margin-bottom:16px;">Point your camera at a LAKSEND QR code, or upload a saved QR image.</p>
+
+                <!-- Camera viewport -->
+                <div class="qr-scan-area">
+                  <video id="qr-video" class="qr-video" autoplay playsinline muted></video>
+                  <canvas id="qr-canvas" style="display:none;"></canvas>
+                  <div class="qr-scan-overlay">
+                    <div class="qr-scan-corner tl"></div>
+                    <div class="qr-scan-corner tr"></div>
+                    <div class="qr-scan-corner bl"></div>
+                    <div class="qr-scan-corner br"></div>
+                    <div class="qr-scan-line"></div>
+                  </div>
+                  <!-- Placeholder when camera is off -->
+                  <div id="qr-cam-placeholder" class="qr-cam-placeholder">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#C9A227" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span>Camera off</span>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:10px;margin-top:14px;">
+                  <button id="qr-camera-btn" class="primary-btn" style="flex:1;" onclick="startQrCamera()">📷 Start Camera</button>
+                  <button class="secondary-btn" style="flex:1;" onclick="stopQrCamera()">⏹ Stop</button>
+                </div>
+
+                <div class="qr-divider">— or upload a QR image —</div>
+
+                <label class="qr-upload-label" for="qr-upload-input">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Upload QR Image
+                </label>
+                <input type="file" id="qr-upload-input" accept="image/*" style="display:none;" onchange="handleQrUpload(event)" />
+
+                <div id="qr-scan-result" class="qr-scan-result" style="display:none;"></div>
+              </div>
+
+              <!-- QR Pay form — shown after a successful scan -->
+              <div id="qr-pay-form" class="page-card" style="display:none;">
+                <h2>⚡ QR Payment Details</h2>
+                <div class="qr-pay-summary" id="qr-pay-summary"></div>
+
+                <div class="form-group" style="margin-top:16px;">
+                  <label for="qr-pay-amount">Amount (LKRt)</label>
+                  <input type="number" id="qr-pay-amount" min="0" step="0.01" inputmode="decimal" placeholder="Enter amount to send" />
+                </div>
+                <div class="form-group">
+                  <label for="qr-pay-password">Your password</label>
+                  <input type="password" id="qr-pay-password" placeholder="Confirm with your wallet password" />
+                </div>
+
+                <div style="display:flex;gap:10px;">
+                  <button class="primary-btn gold-btn" style="flex:2" onclick="prepareQrTransfer()">Continue</button>
+                  <button class="secondary-btn" style="flex:1" onclick="cancelQrPay()">Cancel</button>
+                </div>
+
+                <!-- OTP confirmation (same flow as manual) -->
+                <div id="qr-transfer-confirmation" class="transfer-confirmation" style="display:none;">
+                  <h3>⚡ Confirm QR Transfer</h3>
+                  <p id="qr-transfer-summary"></p>
+                  <div id="qr-transfer-otp-section" style="display:none;">
+                    <div class="form-group">
+                      <label>Transfer OTP</label>
+                      <p class="muted" style="font-size:12.5px;margin-bottom:8px;">A code has been sent to your registered email.</p>
+                      <input type="text" id="qr-transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" />
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:10px;margin-top:8px;">
+                    <button class="primary-btn gold-btn" style="flex:2" onclick="confirmQrTransfer()">Confirm &amp; Send</button>
+                    <button class="secondary-btn" style="flex:1" onclick="cancelQrPay()">Cancel</button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div id="favorites-section" class="page-card" style="display:none;">
-              <h2>Favourite Payees</h2>
-              <div id="favorites-list" class="favorites-list"></div>
-            </div>
+            </div><!-- /scan tab -->
+
+            <!-- ══════════════════════════════════════════ -->
+            <!-- MY QR (RECEIVE) TAB                        -->
+            <!-- ══════════════════════════════════════════ -->
+            <div id="transfer-tab-receive" class="transfer-tab-content">
+
+              <div class="page-card" style="text-align:center;">
+                <h2>My Payment QR</h2>
+                <p class="muted" style="margin-bottom:20px;">Share this code so others can send you LKRt instantly — no address needed.</p>
+
+                <!-- QR code renders here -->
+                <div class="my-qr-wrapper">
+                  <div id="my-qr-code" class="my-qr-container"></div>
+                </div>
+
+                <div class="my-qr-address" id="my-qr-address-label"></div>
+
+                <!-- Optional: pre-fill amount / note in the QR -->
+                <div style="text-align:left;margin-top:20px;">
+                  <div class="form-group">
+                    <label for="qr-request-amount">Request specific amount (optional)</label>
+                    <input type="number" id="qr-request-amount" min="0" step="0.01" inputmode="decimal" placeholder="Leave blank for any amount" />
+                  </div>
+                  <div class="form-group">
+                    <label for="qr-label">Label / Note (optional)</label>
+                    <input type="text" id="qr-label" placeholder="e.g. Rent, Invoice #123" maxlength="60" />
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                  <button class="primary-btn" style="width:auto;padding:12px 24px;flex:1;min-width:130px;" onclick="generateMyQR()">🔄 Regenerate</button>
+                  <button class="secondary-btn" style="width:auto;padding:12px 20px;flex:1;min-width:130px;" onclick="downloadMyQR()">⬇️ Save Image</button>
+                </div>
+              </div>
+
+            </div><!-- /receive tab -->
+
           </section>
 
           <!-- CONVERT PAGE -->

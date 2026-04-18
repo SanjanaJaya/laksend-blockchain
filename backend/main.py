@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 import hashlib
+import json
 from typing import List
 import random
 import requests as http_requests
@@ -346,6 +347,20 @@ class ConvertRequest(BaseModel):
 class MineRequest(BaseModel):
     miner_address: str
 
+
+class QRPaymentRequest(BaseModel):
+    wallet_address: str
+    amount: float | None = None
+    label: str | None = None
+
+
+class QRTransferRequest(BaseModel):
+    sender_username: str
+    qr_data: str          # JSON string encoded in QR
+    password: str
+    otp_code: str
+
+
 # ================= API ENDPOINTS =================
 
 
@@ -363,6 +378,7 @@ def read_root():
             "Transfer OTP Verification",
             "Receipt Email Notifications",
             "Password Reset via Email OTP",
+            "QR Code Payments",
         ],
         "endpoints": [
             "/signup",
@@ -379,6 +395,8 @@ def read_root():
             "/verify-reset-otp",
             "/reset-password",
             "/rekey-wallet",
+            "/qr/generate",
+            "/qr/resolve/{wallet_address}",
         ],
     }
 
@@ -889,6 +907,54 @@ def rekey_wallet(request: RekeyWalletRequest):
     return {
         "message": "Wallet key re-encrypted successfully. Transfers are now fully restored.",
         "username": request.username,
+    }
+
+
+@app.post("/qr/generate")
+def generate_qr_payload(request: QRPaymentRequest):
+    """
+    Generate a QR payment payload for a wallet address.
+    The frontend encodes this JSON as a QR code image.
+    Returns the structured payload that should be embedded in the QR code.
+    """
+    user = db.get_user_by_address(request.wallet_address)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet address not found",
+        )
+
+    payload = {
+        "network": "LAKSEND",
+        "version": "1",
+        "wallet_address": request.wallet_address,
+        "username": user["username"],
+        "full_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+    }
+    if request.amount is not None and request.amount > 0:
+        payload["amount"] = request.amount
+    if request.label:
+        payload["label"] = request.label
+
+    return {"payload": payload, "qr_string": json.dumps(payload)}
+
+
+@app.get("/qr/resolve/{wallet_address}")
+def resolve_qr_address(wallet_address: str):
+    """Resolve a wallet address scanned from a QR code into user details."""
+    user = db.get_user_by_address(wallet_address)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet address not found",
+        )
+
+    balance = blockchain.get_balance(wallet_address)
+    return {
+        "wallet_address": wallet_address,
+        "username": user["username"],
+        "full_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+        "balance_LKRt": balance,
     }
 
 

@@ -51,6 +51,7 @@ function showPage(pageName) {
       loadProfile(currentUser.username);
     }
   } else if (pageName === 'transfer') {
+    switchTransferTab('manual');
     loadFavoritePayees();
   } else if (pageName === 'convert') {
     loadPortfolio(); // Load portfolio to show balances
@@ -594,6 +595,7 @@ function deleteFavoritePayee(address) {
 }
 
 function selectFavoritePayee(username, address) {
+  switchTransferTab('manual');
   document.getElementById('receiver-address').value = address;
   fetchReceiverInfo();
   document.getElementById('transfer-amount').focus();
@@ -1234,4 +1236,442 @@ function showNotification(type, title, message) {
       }
     }, 250);
   }, 4000);
+}
+// ============================================================
+// ==================== QR PAYMENT MODULE =====================
+// ============================================================
+
+let qrStream = null;             // active camera MediaStream
+let qrScanInterval = null;       // setInterval handle for frame scanning
+let pendingQrData = null;        // parsed QR payload after scan
+let pendingQrTransferData = null;// transfer data pending OTP confirmation
+let myQRInstance = null;         // QRCode.js instance for "My QR" tab
+
+// ---- Transfer method tab switcher ----
+function switchTransferTab(tab) {
+  // Guard: function may be called before DOM is ready
+  const tabs = document.querySelectorAll('.transfer-tab-btn');
+  const contents = document.querySelectorAll('.transfer-tab-content');
+  if (!tabs.length) return;
+
+  tabs.forEach(b => b.classList.remove('active'));
+  contents.forEach(c => c.classList.remove('active'));
+
+  const btn = document.querySelector(`.transfer-tab-btn[data-ttab="${tab}"]`);
+  const content = document.getElementById(`transfer-tab-${tab}`);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+
+  // Stop camera if leaving scan tab
+  if (tab !== 'scan') stopQrCamera();
+
+  // Auto-generate QR when opening receive tab
+  if (tab === 'receive' && currentUser) generateMyQR();
+}
+
+// ============================================================
+// MY QR CODE — "Receive" tab
+// ============================================================
+function generateMyQR() {
+  if (!currentUser) return;
+
+  const container = document.getElementById('my-qr-code');
+  const addrLabel = document.getElementById('my-qr-address-label');
+  if (!container) return;
+
+  const amount = parseFloat(document.getElementById('qr-request-amount')?.value || '0') || 0;
+  const label  = (document.getElementById('qr-label')?.value || '').trim();
+
+  const payload = {
+    network:        'LAKSEND',
+    version:        '1',
+    wallet_address: currentUser.wallet_address,
+    username:       currentUser.username,
+    full_name:      currentUser.full_name || currentUser.username,
+  };
+  if (amount > 0) payload.amount = amount;
+  if (label)      payload.label  = label;
+
+  container.innerHTML = '';
+  myQRInstance = null;
+
+  if (typeof QRCode === 'undefined') {
+    container.innerHTML = '<p style="color:#ef4444;font-size:13px;padding:16px;">QR library not loaded — check internet connection.</p>';
+    return;
+  }
+
+  myQRInstance = new QRCode(container, {
+    text:          JSON.stringify(payload),
+    width:         220,
+    height:        220,
+    colorDark:     '#0B1437',
+    colorLight:    '#FFFFFF',
+    correctLevel:  QRCode.CorrectLevel.H,
+  });
+
+  if (addrLabel) {
+    const a = currentUser.wallet_address;
+    addrLabel.textContent = a.slice(0, 10) + '…' + a.slice(-8);
+  }
+}
+
+function downloadMyQR() {
+  const container = document.getElementById('my-qr-code');
+  // Try to get the QR image rendered by QRCode.js
+  const img = container?.querySelector('img');
+  const cvs = container?.querySelector('canvas');
+
+  const srcEl = img || cvs;
+  if (!srcEl) {
+    generateMyQR();
+    showNotification('info', 'Ready', 'QR generated — tap Save again.');
+    return;
+  }
+
+  const outCanvas = document.createElement('canvas');
+  const PAD = 24;
+  outCanvas.width  = 220 + PAD * 2;
+  outCanvas.height = 220 + PAD * 2 + 48; // header + QR + footer
+  const ctx = outCanvas.getContext('2d');
+
+  // Header bar
+  ctx.fillStyle = '#0B1437';
+  ctx.fillRect(0, 0, outCanvas.width, 44);
+  ctx.fillStyle = '#C9A227';
+  ctx.font = 'bold 15px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('LAKSEND', outCanvas.width / 2, 28);
+
+  // White body
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 44, outCanvas.width, outCanvas.height - 44);
+
+  // Draw QR
+  const drawQR = (source) => {
+    ctx.drawImage(source, PAD, 44 + PAD, 220, 220);
+
+    // Footer address
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    const a = currentUser.wallet_address;
+    ctx.fillText(a.slice(0, 24) + '…', outCanvas.width / 2, 44 + PAD + 220 + 20);
+
+    const link = document.createElement('a');
+    link.download = `LAKSEND_QR_${currentUser.username}.png`;
+    link.href = outCanvas.toDataURL('image/png');
+    link.click();
+    showNotification('success', '✅ Saved', 'Your QR code image has been downloaded.');
+  };
+
+  if (img) {
+    const tempImg = new Image();
+    tempImg.crossOrigin = 'anonymous';
+    tempImg.onload = () => drawQR(tempImg);
+    tempImg.onerror = () => showNotification('error', 'Save Failed', 'Could not render QR to image.');
+    tempImg.src = img.src;
+  } else {
+    drawQR(cvs);
+  }
+}
+
+// ============================================================
+// QR SCANNER — "Scan QR" tab
+// ============================================================
+async function startQrCamera() {
+  stopQrCamera();
+
+  const video = document.getElementById('qr-video');
+  if (!video) return;
+
+  document.getElementById('qr-scan-result').style.display = 'none';
+  document.getElementById('qr-camera-btn').disabled = true;
+  document.getElementById('qr-camera-btn').textContent = 'Starting…';
+
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }
+    });
+    video.srcObject = qrStream;
+    video.style.display = 'block';
+    await video.play();
+
+    qrScanInterval = setInterval(() => _scanVideoFrame(video), 200);
+    showNotification('info', '📷 Camera Active', 'Point at a LAKSEND QR code.');
+  } catch (err) {
+    showNotification('error', 'Camera Error', 'Cannot access camera. Try uploading an image instead.');
+    console.error('QR camera error:', err);
+  } finally {
+    const btn = document.getElementById('qr-camera-btn');
+    if (btn) { btn.disabled = false; btn.textContent = '📷 Start Camera'; }
+  }
+}
+
+function stopQrCamera() {
+  if (qrScanInterval)  { clearInterval(qrScanInterval); qrScanInterval = null; }
+  if (qrStream)        { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+  const video = document.getElementById('qr-video');
+  if (video) { video.srcObject = null; video.style.display = 'none'; }
+}
+
+function _scanVideoFrame(video) {
+  if (!video || video.readyState < 2 || video.videoWidth === 0) return;
+  const canvas = document.getElementById('qr-canvas');
+  if (!canvas) return;
+
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  if (typeof jsQR === 'undefined') return;
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+  if (code) {
+    stopQrCamera();
+    _handleScannedQR(code.data);
+  }
+}
+
+function handleQrUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      if (typeof jsQR === 'undefined') {
+        showNotification('error', 'Library Error', 'QR scanner library not loaded.');
+        return;
+      }
+      const code = jsQR(imageData.data, canvas.width, canvas.height);
+      if (code) {
+        _handleScannedQR(code.data);
+      } else {
+        showNotification('error', 'QR Not Found', 'No QR code detected in that image. Try a clearer photo.');
+      }
+    };
+    img.onerror = () => showNotification('error', 'Image Error', 'Could not load the image file.');
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  // Reset so same file can be re-uploaded
+  event.target.value = '';
+}
+
+function _handleScannedQR(rawData) {
+  const resultEl = document.getElementById('qr-scan-result');
+
+  let payload;
+  try {
+    payload = JSON.parse(rawData);
+  } catch (_) {
+    _showScanError(resultEl, 'Invalid QR — not a LAKSEND payment code.');
+    return;
+  }
+
+  if (payload.network !== 'LAKSEND' || !payload.wallet_address) {
+    _showScanError(resultEl, 'This QR code is not from LAKSEND.');
+    return;
+  }
+
+  // Don't let users pay themselves
+  if (currentUser && payload.wallet_address === currentUser.wallet_address) {
+    _showScanError(resultEl, 'You cannot send LKRt to your own wallet.');
+    return;
+  }
+
+  if (resultEl) {
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `<span style="color:#10b981;">✅ QR scanned — loading payment form…</span>`;
+  }
+
+  pendingQrData = payload;
+  _showQrPayForm(payload);
+}
+
+function _showScanError(el, msg) {
+  if (el) { el.style.display = 'block'; el.innerHTML = `<span style="color:#ef4444;">❌ ${msg}</span>`; }
+  showNotification('error', 'Scan Failed', msg);
+}
+
+// ============================================================
+// QR PAY FORM
+// ============================================================
+function _showQrPayForm(payload) {
+  const formEl   = document.getElementById('qr-pay-form');
+  const summaryEl = document.getElementById('qr-pay-summary');
+  if (!formEl || !summaryEl) return;
+
+  summaryEl.innerHTML = `
+    <div class="qr-pay-row">
+      <span>Recipient</span>
+      <strong>${_esc(payload.full_name || payload.username)}</strong>
+    </div>
+    <div class="qr-pay-row">
+      <span>Username</span>
+      <strong>@${_esc(payload.username)}</strong>
+    </div>
+    <div class="qr-pay-row">
+      <span>Wallet</span>
+      <code>${_esc(payload.wallet_address)}</code>
+    </div>
+    ${payload.label ? `<div class="qr-pay-row"><span>Note</span><strong>${_esc(payload.label)}</strong></div>` : ''}
+  `;
+
+  // Pre-fill amount if QR encodes one
+  const amtInput = document.getElementById('qr-pay-amount');
+  if (amtInput) amtInput.value = payload.amount ? payload.amount : '';
+
+  // Reset confirmation state
+  document.getElementById('qr-transfer-confirmation').style.display = 'none';
+  document.getElementById('qr-transfer-otp-section').style.display  = 'none';
+  const pwInput = document.getElementById('qr-pay-password');
+  if (pwInput) pwInput.value = '';
+  const otpInput = document.getElementById('qr-transfer-otp-input');
+  if (otpInput) otpInput.value = '';
+
+  formEl.style.display = 'block';
+  setTimeout(() => formEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
+
+async function prepareQrTransfer() {
+  if (!pendingQrData || !currentUser) return;
+
+  const amount   = parseFloat(document.getElementById('qr-pay-amount').value);
+  const password = document.getElementById('qr-pay-password').value;
+
+  if (!amount || amount <= 0) {
+    showNotification('error', 'Validation Error', 'Please enter a valid amount.');
+    return;
+  }
+  if (!password) {
+    showNotification('error', 'Validation Error', 'Please enter your password.');
+    return;
+  }
+
+  pendingQrTransferData = {
+    sender_username:  currentUser.username,
+    receiver_address: pendingQrData.wallet_address,
+    receiver_name:    pendingQrData.full_name || pendingQrData.username,
+    amount,
+    password,
+  };
+
+  // Request OTP — same endpoint as manual transfer
+  try {
+    const res = await fetch(`${API_URL}/request-transfer-otp`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ username: currentUser.username }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showNotification('info', 'OTP Sent', 'Check your email for the transfer OTP.');
+      const summaryEl = document.getElementById('qr-transfer-summary');
+      if (summaryEl) {
+        summaryEl.textContent =
+          `Send ${amount.toFixed(2)} LKRt to ${pendingQrTransferData.receiver_name}?`;
+      }
+      document.getElementById('qr-transfer-otp-input').value = '';
+      document.getElementById('qr-transfer-otp-section').style.display  = 'block';
+      document.getElementById('qr-transfer-confirmation').style.display = 'block';
+      document.getElementById('qr-transfer-otp-input').focus();
+    } else {
+      showNotification('error', 'OTP Failed', data.detail || 'Could not send OTP.');
+    }
+  } catch (e) {
+    showNotification('error', 'Connection Error', 'Could not reach server.');
+  }
+}
+
+async function confirmQrTransfer() {
+  if (!pendingQrTransferData || !currentUser) return;
+
+  const otpCode = document.getElementById('qr-transfer-otp-input').value.trim();
+  if (!otpCode || otpCode.length !== 6) {
+    showNotification('error', 'Validation Error', 'Enter the 6-digit OTP from your email.');
+    return;
+  }
+
+  const btn = document.querySelector('#qr-transfer-confirmation .primary-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  try {
+    const response = await fetch(`${API_URL}/transfer`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        sender_username:  pendingQrTransferData.sender_username,
+        receiver_address: pendingQrTransferData.receiver_address,
+        amount:           pendingQrTransferData.amount,
+        password:         pendingQrTransferData.password,
+        otp_code:         otpCode,
+      }),
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      showNotification('success', '✅ QR Transfer Sent!',
+        `${pendingQrTransferData.amount.toFixed(2)} LKRt sent via QR payment.`);
+
+      loadPortfolio();
+      loadRecentTransactions();
+      loadTransactionHistory();
+
+      // Auto-open receipt slip
+      setTimeout(() => openSlipModal({
+        type:            'sent',
+        amount:          pendingQrTransferData.amount,
+        senderName:      currentUser.full_name || currentUser.username,
+        senderAddress:   currentUser.wallet_address,
+        receiverName:    pendingQrTransferData.receiver_name,
+        receiverAddress: pendingQrTransferData.receiver_address,
+        blockIndex:      data.block_index || 0,
+        timestamp:       new Date().toLocaleString(),
+      }), 400);
+
+      cancelQrPay();
+    } else {
+      showNotification('error', 'Transfer Failed', data.detail || 'Could not complete QR transfer.');
+    }
+  } catch (e) {
+    showNotification('error', 'Connection Error', 'Could not reach server.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Send'; }
+  }
+}
+
+function cancelQrPay() {
+  pendingQrData         = null;
+  pendingQrTransferData = null;
+
+  const formEl = document.getElementById('qr-pay-form');
+  if (formEl) formEl.style.display = 'none';
+  document.getElementById('qr-transfer-confirmation').style.display = 'none';
+  document.getElementById('qr-transfer-otp-section').style.display  = 'none';
+  document.getElementById('qr-scan-result').style.display           = 'none';
+
+  const amtEl = document.getElementById('qr-pay-amount');
+  if (amtEl) amtEl.value = '';
+  const pwEl = document.getElementById('qr-pay-password');
+  if (pwEl) pwEl.value = '';
+  const otpEl = document.getElementById('qr-transfer-otp-input');
+  if (otpEl) otpEl.value = '';
+  const fileEl = document.getElementById('qr-upload-input');
+  if (fileEl) fileEl.value = '';
+}
+
+// ---- tiny helper ----
+function _esc(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
