@@ -1,4 +1,5 @@
 const API_URL = 'https://laksend-blockchain-production.up.railway.app';
+window.API_URL = API_URL;
 
 let currentUser = null;
 let supportedCurrencies = [];
@@ -6,9 +7,13 @@ let lastTransactionCount = 0;
 let transactionCheckInterval = null;
 let allTransactions = [];
 let pendingTransferData = null;
-let currentPortfolio = {}; // Store portfolio data globally
-let pendingSignupUser = null; // store username for OTP verification
-let pendingResetEmail = null; // store email across password reset steps
+let currentPortfolio = {};
+let pendingSignupUser = null;
+let pendingResetEmail = null;
+
+// Expose mutable state on window so ui-patch.js can read it
+Object.defineProperty(window, 'currentUser',    { get: () => currentUser,    set: v => { currentUser    = v; } });
+Object.defineProperty(window, 'currentPortfolio',{ get: () => currentPortfolio, set: v => { currentPortfolio = v; } });
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,7 +46,11 @@ function showPage(pageName) {
   if (pageName === 'transactions') {
     loadTransactionHistory();
   } else if (pageName === 'overview') {
-    loadPortfolio();
+    // NOTE: loadPortfolio is called separately with await from login/session restore.
+    // Only reload here if navigating TO overview from another page (currentPortfolio already set).
+    if (currentUser && Object.keys(currentPortfolio).length > 0) {
+      loadPortfolio();
+    }
     loadRecentTransactions();
     if (currentUser) {
       loadProfile(currentUser.username);
@@ -131,7 +140,7 @@ async function verifyAndRestoreSession(username) {
       if (walletEl) walletEl.textContent = data.wallet_address;
 
       await loadProfile(username);
-      loadPortfolio();
+      await loadPortfolio();
       loadRecentTransactions();
       startTransactionMonitoring();
       showPage('overview');
@@ -281,7 +290,7 @@ async function login() {
       if (walletEl) walletEl.textContent = data.wallet_address;
 
       await loadProfile(username);
-      loadPortfolio();
+      await loadPortfolio();
       loadRecentTransactions();
       startTransactionMonitoring();
       showPage('overview');
@@ -316,10 +325,10 @@ async function loadProfile(username) {
         const data = await response.json();
 
         const firstNameEl = document.getElementById('profile-first-name');
-        if (firstNameEl) firstNameEl.textContent = data.firstname || '';
+        if (firstNameEl) firstNameEl.textContent = data.first_name || '';
 
         const lastNameEl = document.getElementById('profile-last-name');
-        if (lastNameEl) lastNameEl.textContent = data.lastname || '';
+        if (lastNameEl) lastNameEl.textContent = data.last_name || '';
 
         const userEl = document.getElementById('profile-username');
         if (userEl) userEl.textContent = data.username;
@@ -334,13 +343,13 @@ async function loadProfile(username) {
         if (addrEl) addrEl.textContent = data.address;
 
         const pcEl = document.getElementById('profile-postal-code');
-        if (pcEl) pcEl.textContent = data.postalcode;
+        if (pcEl) pcEl.textContent = data.postal_code;
 
         const wEl = document.getElementById('profile-wallet-address');
-        if (wEl) wEl.textContent = data.walletaddress;
+        if (wEl) wEl.textContent = data.wallet_address;
 
         const createdEl = document.getElementById('profile-created-at');
-        if (createdEl) createdEl.textContent = data.createdat;
+        if (createdEl) createdEl.textContent = data.created_at;
 
     } catch (err) {
         console.error('Failed to load profile', err);
@@ -408,13 +417,29 @@ async function loadSupportedCurrencies() {
 async function loadPortfolio() {
   if (!currentUser) return;
 
+  const FLAGS = {
+    LKRt:'LK',USD:'US',EUR:'EU',GBP:'GB',JPY:'JP',
+    AUD:'AU',CAD:'CA',CHF:'CH',CNY:'CN',INR:'IN',
+    SGD:'SG',AED:'AE',SAR:'SA',MYR:'MY',THB:'TH',
+    HKD:'HK',KRW:'KR',PHP:'PH',IDR:'ID',BDT:'BD',
+  };
+  const NAMES = {
+    LKRt:'LKR Token',USD:'US Dollar',EUR:'Euro',GBP:'Pound Sterling',
+    JPY:'Japanese Yen',AUD:'Australian Dollar',CAD:'Canadian Dollar',
+    CHF:'Swiss Franc',CNY:'Chinese Yuan',INR:'Indian Rupee',
+    SGD:'Singapore Dollar',AED:'UAE Dirham',SAR:'Saudi Riyal',
+    MYR:'Malaysian Ringgit',THB:'Thai Baht',HKD:'Hong Kong Dollar',
+    KRW:'Korean Won',PHP:'Philippine Peso',IDR:'Indonesian Rupiah',BDT:'Bangladeshi Taka',
+  };
+
   try {
     const response = await fetch(`${API_URL}/portfolio/${currentUser.username}`);
     const data = await response.json();
     if (!response.ok) return;
 
     currentPortfolio = data.portfolio || {};
-    const container = document.getElementById('portfolio-balances');
+
+    const container   = document.getElementById('portfolio-balances');
     const fxContainer = document.getElementById('fx-balances');
     if (!container) return;
 
@@ -422,29 +447,61 @@ async function loadPortfolio() {
     if (fxContainer) fxContainer.innerHTML = '';
 
     const entries = Object.entries(currentPortfolio);
-    if (entries.length === 0) {
-      container.innerHTML = '<p class="muted">No currencies in portfolio yet</p>';
+
+    // ── Sync LKRt to all balance display elements ──
+    const lkrtBalance = currentPortfolio['LKRt'] || 0;
+    const fmt = lkrtBalance.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+    ['topbar-balance-display','overview-balance-display','stat-balance'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = id === 'topbar-balance-display' ? fmt + ' LKRt' : fmt;
+    });
+    const sidebarBal = document.getElementById('sidebar-balance-display');
+    if (sidebarBal) sidebarBal.innerHTML = fmt + ' <span>LKRt</span>';
+
+    // ── FX asset count ──
+    const fxCount = entries.filter(([k, v]) => k !== 'LKRt' && v > 0).length;
+    const statFx = document.getElementById('stat-fx');
+    if (statFx) statFx.textContent = fxCount + (fxCount === 1 ? ' asset' : ' assets');
+
+    if (entries.length === 0 || !entries.some(([, v]) => v > 0)) {
+      container.innerHTML = '<p class="muted" style="padding:8px 0;">No balances yet.</p>';
+      if (fxContainer) fxContainer.innerHTML = '<p class="muted" style="padding:8px 0;">No FX holdings yet.</p>';
       return;
     }
 
+    let i = 0;
     entries.forEach(([currency, balance]) => {
       if (balance <= 0) return;
+      const flag  = FLAGS[currency] || '💱';
+      const name  = NAMES[currency] || currency;
+      const bFmt  = balance.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+      const delay = (i * 0.06) + 's';
 
-      const card = document.createElement('div');
-      card.className = 'currency-card';
-      card.innerHTML = `
-        <div class="currency-code">${currency}</div>
-        <div class="currency-balance">${balance.toFixed(2)}</div>
-      `;
-      container.appendChild(card);
+      const item = document.createElement('div');
+      item.className = 'portfolio-item';
+      item.style.animationDelay = delay;
+      item.innerHTML =
+        '<div class="portfolio-flag"><span class="currency-badge">' + flag + '</span></div>' +
+        '<div class="portfolio-info">' +
+          '<div class="portfolio-currency">' + currency + '</div>' +
+          '<div class="portfolio-name">' + name + '</div>' +
+        '</div>' +
+        '<div class="portfolio-amount">' + bFmt + '</div>';
+      container.appendChild(item);
 
       if (currency !== 'LKRt' && fxContainer) {
-        const chip = document.createElement('div');
-        chip.className = 'balance-chip';
-        chip.textContent = `${currency} · ${balance.toFixed(2)}`;
-        fxContainer.appendChild(chip);
+        const fxItem = item.cloneNode(true);
+        fxItem.style.animationDelay = delay;
+        fxContainer.appendChild(fxItem);
       }
+      i++;
     });
+
+    if (fxContainer && fxContainer.children.length === 0) {
+      fxContainer.innerHTML = '<p class="muted" style="padding:8px 0;">No foreign currency holdings yet.</p>';
+    }
+
   } catch (error) {
     console.error('Failed to load portfolio:', error);
   }
@@ -454,32 +511,45 @@ async function loadPortfolio() {
 async function fetchReceiverInfo() {
   const address = document.getElementById('receiver-address').value.trim();
   const infoBox = document.getElementById('receiver-info');
-  if (!infoBox || !address) {
-    if (infoBox) infoBox.innerHTML = '';
+  if (!infoBox) return;
+  if (!address) {
+    infoBox.style.display = 'none';
+    infoBox.innerHTML = '';
     return;
   }
+
+  infoBox.style.display = 'flex';
+  infoBox.className = 'receiver-info loading';
+  infoBox.innerHTML = '<span class="receiver-loading">Looking up wallet…</span>';
 
   try {
     const response = await fetch(`${API_URL}/balance/${address}`);
     if (!response.ok) {
-      infoBox.innerHTML = '<p class="muted">Could not find receiver info.</p>';
+      infoBox.className = 'receiver-info error';
+      infoBox.innerHTML = '<span class="receiver-not-found">⚠ Wallet address not found</span>';
       return;
     }
     const data = await response.json();
-    const namePart = data.full_name || data.username || 'Unknown';
+    const firstName = data.first_name || '';
+    const lastName  = data.last_name  || '';
+    const fullName  = (firstName + ' ' + lastName).trim() || data.full_name || data.username || 'Unknown';
+    const username  = data.username || '';
+    const initial   = (firstName || username || '?')[0].toUpperCase();
 
-    infoBox.innerHTML = `
-      <div class="receiver-summary">
-        <div class="receiver-name">${namePart}</div>
-        <div class="receiver-username">@${data.username}</div>
-      </div>
-    `;
+    infoBox.className = 'receiver-info found';
+    infoBox.innerHTML =
+      '<div class="receiver-avatar">' + initial + '</div>' +
+      '<div class="receiver-details">' +
+        '<div class="receiver-name">' + fullName + '</div>' +
+        '<div class="receiver-username">@' + username + '</div>' +
+      '</div>' +
+      '<div class="receiver-check">✓</div>';
   } catch (err) {
     console.error('Failed to fetch receiver info:', err);
+    infoBox.style.display = 'none';
     infoBox.innerHTML = '';
   }
 }
-
 async function prepareTransfer() {
   if (!currentUser) { showNotification('error', 'Transfer Error', 'Please login first'); return; }
   const receiverAddress = document.getElementById('receiver-address').value.trim();
@@ -734,8 +804,8 @@ async function processAndDisplayTransactions(transactions, containerId = 'transa
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  if (transactions.length === 0) {
-    container.innerHTML = '<p class="muted">No transactions yet</p>';
+  if (!transactions || transactions.length === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center;padding:20px 0;">No transactions yet</p>';
     return;
   }
 
@@ -760,70 +830,76 @@ async function processAndDisplayTransactions(transactions, containerId = 'transa
     })
   );
 
-  container.innerHTML = '';
+  // Update sent/received stats
+  let totalSent = 0, totalReceived = 0;
   transactions.forEach(tx => {
-    const isReceived = tx.toaddress === currentUser.wallet_address;
-    const isSent = tx.fromaddress === currentUser.wallet_address;
-    const isSystem = tx.fromaddress === 'SYSTEM';
+    if (tx.toaddress === currentUser.wallet_address)   totalReceived += (tx.amount || 0);
+    if (tx.fromaddress === currentUser.wallet_address) totalSent     += (tx.amount || 0);
+  });
+  const ss = document.getElementById('stat-sent');
+  const sr = document.getElementById('stat-received');
+  if (ss) ss.textContent = totalSent.toFixed(2);
+  if (sr) sr.textContent = totalReceived.toFixed(2);
 
-    let txType, txClass, details, counterparty;
+  container.innerHTML = '';
+  transactions.forEach((tx, i) => {
+    const isReceived = tx.toaddress   === currentUser.wallet_address;
+    const isSent     = tx.fromaddress === currentUser.wallet_address;
+    const isSystem   = tx.fromaddress === 'SYSTEM';
+
+    let icon, typeClass, title, subtitle;
     if (isSystem) {
-      txType = '🎁 System Reward';
-      txClass = 'received';
-      details = 'Initial/Mining Credit';
-      counterparty = 'SYSTEM';
-    } else if (isReceived) {
-      txType = '📥 Received';
-      txClass = 'received';
-      const senderName = addressToUsername[tx.fromaddress] || 'Unknown';
-      details = `From: @${senderName}`;
-      counterparty = senderName;
+      icon = '🎁'; typeClass = 'received'; title = 'System Credit'; subtitle = 'SYSTEM';
+    } else if (isReceived && !isSent) {
+      const n = addressToUsername[tx.fromaddress] || (tx.fromaddress||'').substring(0,8)+'…';
+      icon = '📥'; typeClass = 'received'; title = 'Received'; subtitle = 'From @' + n;
     } else if (isSent) {
-      txType = '📤 Sent';
-      txClass = 'sent';
-      const receiverName = addressToUsername[tx.toaddress] || 'Unknown';
-      details = `To: @${receiverName}`;
-      counterparty = receiverName;
+      const n = addressToUsername[tx.toaddress] || (tx.toaddress||'').substring(0,8)+'…';
+      icon = '📤'; typeClass = 'sent'; title = 'Sent'; subtitle = 'To @' + n;
     } else {
-      txType = '❓ Unknown';
-      txClass = '';
-      details = 'Transaction type unknown';
-      counterparty = 'Unknown';
+      icon = '⟳'; typeClass = 'neutral'; title = 'Transaction'; subtitle = '—';
     }
 
-    const timestamp = tx.timestamp
-      ? new Date(tx.timestamp * 1000).toLocaleString()
-      : 'Unknown time';
-    const amountDisplay = tx.amount > 0 ? `${tx.amount.toFixed(2)} LKRt` : 'N/A';
+    const ts = tx.timestamp
+      ? new Date(tx.timestamp * 1000).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '—';
+    const amt = tx.amount != null
+      ? (typeClass === 'sent' ? '-' : '+') + parseFloat(tx.amount).toFixed(2)
+      : '—';
 
-    // Build slip data object for PDF generation
-    const slipData = JSON.stringify({
+    const slipData = {
       type: isSystem ? 'reward' : (isSent ? 'sent' : 'received'),
       amount: tx.amount,
       senderAddress: tx.fromaddress || 'SYSTEM',
       receiverAddress: tx.toaddress || '',
       senderName: isSystem ? 'SYSTEM' : (isSent ? currentUser.full_name : (addressToUsername[tx.fromaddress] || 'Unknown')),
-      receiverName: isSystem ? (currentUser.full_name) : (isSent ? counterparty : currentUser.full_name),
-      timestamp: timestamp,
+      receiverName: isSystem ? currentUser.full_name : (isSent ? (addressToUsername[tx.toaddress] || 'Unknown') : currentUser.full_name),
+      timestamp: ts,
       blockIndex: tx.block_index,
-      txLabel: txType.replace(/[^\w\s]/g, '').trim(),
-    }).replace(/'/g, '&#39;');
+    };
 
-    const txElement = document.createElement('div');
-    txElement.className = `transaction-item ${txClass}`;
-    txElement.innerHTML = `
-      <div class="tx-main">
-        <div class="tx-type">${txType}</div>
-        <div class="tx-amount">${amountDisplay}</div>
-      </div>
-      <div class="tx-meta">
-        <span>${details}</span>
-        <span>${timestamp}</span>
-        <span>Block #${tx.block_index}</span>
-        <button class="tx-slip-btn" onclick='openSlipModal(${slipData})'>📄 Slip</button>
-      </div>
-    `;
-    container.appendChild(txElement);
+    const item = document.createElement('div');
+    item.className = 'tx-item';
+    item.style.animationDelay = (i * 0.04) + 's';
+    item.innerHTML =
+      '<div class="tx-icon ' + typeClass + '">' + icon + '</div>' +
+      '<div class="tx-info">' +
+        '<div class="tx-title">' + title + '</div>' +
+        '<div class="tx-subtitle">' + subtitle + '</div>' +
+      '</div>' +
+      '<div>' +
+        '<div class="tx-amount ' + typeClass + '">' + amt + ' LKRt</div>' +
+        '<div class="tx-time">' + ts + '</div>' +
+      '</div>' +
+      (typeClass !== 'neutral' ? '<button class="slip-btn">Receipt</button>' : '');
+
+    const btn = item.querySelector('.slip-btn');
+    if (btn) {
+      const sd = Object.assign({}, slipData);
+      btn.addEventListener('click', () => openSlipModal(sd));
+    }
+
+    container.appendChild(item);
   });
 }
 

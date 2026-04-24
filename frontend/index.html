@@ -5,52 +5,55 @@
   <title>LAKSEND — Blockchain Wallet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="LAKSEND — Secure blockchain wallet. Instant transfers, live FX conversion." />
-  <meta name="theme-color" content="#0B1437" />
+  <meta name="theme-color" content="#050810" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="LAKSEND" />
-  <!-- Prevent iOS text size adjustment -->
   <meta name="format-detection" content="telephone=no" />
-
-  <!-- Web App Manifest (PWA) -->
   <link rel="manifest" href="manifest.json" />
-
-  <!-- Favicon / App Icons -->
   <link rel="icon" type="image/png" href="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png" />
   <link rel="apple-touch-icon" href="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png" />
 
-  <!-- Critical: prevent white flash before CSS loads -->
-  <style>
-    html, body { background: #0B1437; margin: 0; padding: 0; height: 100%; overflow: hidden; }
-  </style>
+  <style>html,body{background:#050810;margin:0;padding:0;height:100%;overflow:hidden;}</style>
 
   <link rel="stylesheet" href="style.css" />
-  <!-- jsPDF for slip generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <!-- QRCode.js — generate QR codes -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <!-- jsQR — decode QR from camera / image -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 </head>
 <body>
-  <div id="app-root">
+<div id="app-root">
 
-    <!-- ================= AUTH SECTION ================= -->
-    <section id="auth-section" class="auth-section active">
-      <div class="auth-scroll-wrap">
+  <!-- ================= AUTH SECTION ================= -->
+  <section id="auth-section" class="auth-section active">
+    <div class="auth-grid-pattern"></div>
+
+    <!-- Floating particles -->
+    <canvas id="auth-particles" style="position:absolute;inset:0;pointer-events:none;z-index:1;opacity:0.6;"></canvas>
+
+    <div class="auth-scroll-wrap">
       <div class="auth-container">
+
+        <!-- Header -->
         <div class="auth-header">
-          <img
-            src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png"
-            alt="LAKSEND"
-            class="auth-logo"
-            onerror="this.style.display='none'"
-          />
+          <div class="auth-logo-wrap">
+            <img
+              src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png"
+              alt="LAKSEND"
+              class="auth-logo"
+              onerror="this.style.display='none'"
+            />
+          </div>
           <h1>LAK<span>SEND</span></h1>
-          <p>Secure blockchain wallet · Instant transfers · Live FX</p>
+          <div class="auth-tagline">
+            <span class="auth-tag">⛓ Blockchain</span>
+            <span class="auth-tag">⚡ Instant</span>
+            <span class="auth-tag">🌍 FX Ready</span>
+          </div>
         </div>
 
+        <!-- Body -->
         <div class="auth-body">
           <div class="tab-header">
             <button class="tab-btn active" data-tab="login" onclick="showTab('login')">Login</button>
@@ -69,8 +72,8 @@
                 <input type="password" id="login-password" placeholder="Your password" autocomplete="current-password" />
               </div>
               <button class="primary-btn" onclick="login()">Login to Wallet</button>
-              <div style="text-align:center;margin-top:14px;">
-                <button class="link-btn" style="font-size:13px;color:#C9A227;" onclick="showTab('forgot-password')">Forgot password?</button>
+              <div style="text-align:center;margin-top:16px;">
+                <button class="link-btn" onclick="showTab('forgot-password')">Forgot password?</button>
               </div>
             </div>
           </div>
@@ -78,39 +81,33 @@
           <!-- FORGOT PASSWORD TAB -->
           <div id="forgot-password-tab" class="tab-content">
             <div class="auth-card">
-
-              <!-- Step 1: Enter email -->
               <div id="fp-step-1">
-                <p style="font-size:13px;color:#475569;margin-bottom:16px;">Enter your registered email address and we'll send you a reset code.</p>
+                <p style="font-size:13px;color:var(--text-3);margin-bottom:16px;">Enter your registered email and we'll send a reset code.</p>
                 <div class="form-group">
                   <label for="fp-email">Email address</label>
                   <input type="email" id="fp-email" placeholder="you@example.com" autocomplete="email" />
                 </div>
                 <button id="fp-send-btn" class="primary-btn" onclick="forgotPassword()">Send Reset Code</button>
                 <div style="text-align:center;margin-top:14px;">
-                  <button class="link-btn" style="font-size:13px;" onclick="showTab('login')">← Back to login</button>
+                  <button class="link-btn" onclick="showTab('login')">← Back to login</button>
                 </div>
               </div>
-
-              <!-- Step 2: Enter OTP -->
               <div id="fp-step-2" style="display:none;">
-                <p style="font-size:13px;color:#475569;margin-bottom:16px;">Enter the 6-digit code sent to your email. It expires in 10 minutes.</p>
+                <p style="font-size:13px;color:var(--text-3);margin-bottom:16px;">Enter the 6-digit code sent to your email.</p>
                 <div class="form-group">
                   <label>Reset OTP</label>
                   <input type="text" id="fp-otp" placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric" />
                 </div>
                 <button id="fp-verify-btn" class="primary-btn" onclick="verifyResetOtp()">Verify Code</button>
                 <div style="text-align:center;margin-top:14px;">
-                  <button id="fp-resend-btn" class="link-btn" style="font-size:13px;color:#C9A227;" onclick="resendResetCode()">Resend code</button>
+                  <button id="fp-resend-btn" class="link-btn" onclick="resendResetCode()">Resend code</button>
                 </div>
               </div>
-
-              <!-- Step 3: Set new password -->
               <div id="fp-step-3" style="display:none;">
-                <p style="font-size:13px;color:#475569;margin-bottom:16px;">Choose a strong new password (minimum 8 characters).</p>
+                <p style="font-size:13px;color:var(--text-3);margin-bottom:16px;">Choose a strong new password (min 8 characters).</p>
                 <div class="form-group">
                   <label for="fp-new-password">New password</label>
-                  <input type="password" id="fp-new-password" placeholder="New password (min 8 chars)" autocomplete="new-password" />
+                  <input type="password" id="fp-new-password" placeholder="New password" autocomplete="new-password" />
                 </div>
                 <div class="form-group">
                   <label for="fp-confirm-password">Confirm new password</label>
@@ -118,7 +115,6 @@
                 </div>
                 <button id="fp-reset-btn" class="primary-btn gold-btn" onclick="resetPassword()">Reset Password</button>
               </div>
-
             </div>
           </div>
 
@@ -168,9 +164,7 @@
               <button class="primary-btn" onclick="signup()">Create Account</button>
 
               <div id="otp-section" style="display:none; margin-top:20px;">
-                <p style="font-size:13px;color:#475569;margin-bottom:12px;">
-                  We sent a verification code to your email.
-                </p>
+                <p style="font-size:13px;color:var(--text-3);margin-bottom:12px;">Verification code sent to your email.</p>
                 <div class="form-group">
                   <label>OTP Code</label>
                   <input type="text" id="signup-otp" placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric" />
@@ -179,462 +173,486 @@
               </div>
             </div>
           </div>
+
+        </div><!-- /.auth-body -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DASHBOARD SECTION ================= -->
+  <section id="dashboard-section" class="dashboard-section">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-content">
+        <div class="topbar-left">
+          <img
+            src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png"
+            alt="LAKSEND"
+            class="topbar-logo-img"
+            onerror="this.style.display='none'"
+          />
+          <div class="topbar-brand">
+            <strong>LAK<span>SEND</span></strong>
+            <small>
+              <span class="pulse-dot"></span>
+              @<span id="username-display"></span>
+              <span class="wallet-inline">
+                &nbsp;·&nbsp;<span id="wallet-address" style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-3);"></span>
+                <button class="link-btn" onclick="copyWalletAddress()" style="font-size:11px;">Copy</button>
+              </span>
+            </small>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-balance-chip" id="topbar-balance-display">0.00 LKRt</div>
+          <button class="topbar-logout-btn" onclick="logout()">Logout</button>
         </div>
       </div>
-      </div><!-- /.auth-scroll-wrap -->
-    </section>
+    </header>
 
-    <!-- ================= DASHBOARD SECTION ================= -->
-    <section id="dashboard-section" class="dashboard-section">
+    <div class="dashboard-layout">
 
-      <!-- Topbar -->
-      <header class="topbar">
-        <div class="topbar-content">
-          <div class="topbar-left">
-            <img
-              src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png"
-              alt="LAKSEND"
-              class="topbar-logo-img"
-              onerror="this.style.display='none'"
-            />
-            <div class="topbar-brand">
-              <h1>Welcome, <em id="user-fullname-display"></em></h1>
-              <small>
-                @<span id="username-display"></span>
-                <span class="wallet-inline">
-                  &nbsp;·&nbsp;
-                  <span id="wallet-address"></span>
-                  <button class="link-btn" onclick="copyWalletAddress()">Copy</button>
-                </span>
-              </small>
-            </div>
+      <!-- Sidebar (desktop only) -->
+      <nav class="sidebar">
+        <!-- Wallet summary -->
+        <div class="sidebar-wallet-card">
+          <div class="sidebar-wallet-label">Your Balance</div>
+          <div class="sidebar-wallet-balance" id="sidebar-balance-display">
+            0.00 <span>LKRt</span>
           </div>
-          <div class="topbar-right">
-            <button class="secondary-btn topbar-logout-btn" onclick="logout()">Logout</button>
-          </div>
+          <div class="sidebar-wallet-label" style="margin-top:10px;">Wallet</div>
+          <div class="sidebar-wallet-address" id="sidebar-wallet-address"></div>
         </div>
-      </header>
 
-      <div class="dashboard-layout">
+        <div class="sidebar-section-label" style="margin-top:10px;">Navigation</div>
 
-        <!-- Sidebar (desktop only) -->
-        <nav class="sidebar">
-          <div class="sidebar-title">Navigation</div>
-          <button class="sidebar-item active" data-page="overview" onclick="showPage('overview')">Overview</button>
-          <button class="sidebar-item" data-page="profile" onclick="showPage('profile')">Profile</button>
-          <button class="sidebar-item" data-page="transfer" onclick="showPage('transfer')">Transfer</button>
-          <button class="sidebar-item" data-page="convert" onclick="showPage('convert')">Convert</button>
-          <button class="sidebar-item" data-page="transactions" onclick="showPage('transactions')">Transactions</button>
-        </nav>
+        <button class="sidebar-item active" data-page="overview" onclick="showPage('overview')">
+          <div class="sidebar-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          </div>
+          Overview
+        </button>
 
-        <!-- Main content -->
-        <main class="content">
+        <button class="sidebar-item" data-page="transfer" onclick="showPage('transfer')">
+          <div class="sidebar-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </div>
+          Transfer
+        </button>
 
-          <!-- OVERVIEW PAGE -->
-          <section id="overview-page" class="page-content active">
-            <div class="page-header">
-              <h2>Overview</h2>
-              <p>Your portfolio summary and recent activity</p>
+        <button class="sidebar-item" data-page="convert" onclick="showPage('convert')">
+          <div class="sidebar-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          </div>
+          Convert
+        </button>
+
+        <button class="sidebar-item" data-page="transactions" onclick="showPage('transactions')">
+          <div class="sidebar-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          History
+        </button>
+
+        <button class="sidebar-item" data-page="profile" onclick="showPage('profile')">
+          <div class="sidebar-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          Profile
+        </button>
+
+
+      </nav>
+
+      <!-- Main content -->
+      <main class="content">
+
+        <!-- ========== OVERVIEW PAGE ========== -->
+        <section id="overview-page" class="page-content active">
+
+          <!-- Hero balance -->
+          <div class="balance-hero">
+            <div class="balance-hero-label">
+              <span class="chain-badge"><span class="pulse-dot"></span> Blockchain Live</span>
             </div>
-            <div class="page-grid">
-              <div class="page-card">
-                <h2>Portfolio</h2>
-                <div id="portfolio-balances"></div>
-              </div>
-              <div class="page-card">
-                <h2>Recent Transactions</h2>
-                <div id="recent-transaction-list"></div>
-              </div>
+            <div class="balance-hero-amount">
+              <span id="overview-balance-display">0.00</span><span class="currency">LKRt</span>
             </div>
-          </section>
-
-          <!-- PROFILE PAGE -->
-          <section id="profile-page" class="page-content">
-            <div class="page-header">
-              <h2>Profile</h2>
-              <p>Your account information</p>
+            <div class="balance-hero-sub">Hello, <strong id="user-fullname-display" style="color:var(--gold-bright);"></strong> — Your wallet is secured on-chain.</div>
+            <div class="balance-hero-actions">
+              <button class="hero-action-btn send" onclick="showPage('transfer')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Send
+              </button>
+              <button class="hero-action-btn receive" onclick="showPage('transfer');setTimeout(()=>switchTransferTab('receive'),100)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Receive
+              </button>
+              <button class="hero-action-btn convert" onclick="showPage('convert')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                Convert
+              </button>
             </div>
+          </div>
 
-            <!-- Mobile wallet card (shown only on mobile) -->
-            <div class="page-card mobile-wallet-card">
-              <h2>Your Wallet</h2>
-              <div class="mobile-wallet-row">
-                <span class="mobile-wallet-address" id="mobile-wallet-address"></span>
-                <button class="copy-wallet-btn" onclick="copyWalletAddress()">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  Copy
+          <!-- Stats -->
+          <div class="stats-row">
+            <div class="stat-card" style="--card-top-color: linear-gradient(90deg, var(--gold-dim), var(--gold-bright));">
+              <div class="stat-icon" style="background:rgba(212,168,50,0.1);">💰</div>
+              <div class="stat-label">LKRt Balance</div>
+              <div class="stat-value gold" id="stat-balance">0.00</div>
+            </div>
+            <div class="stat-card" style="--card-top-color: linear-gradient(90deg, #003f2a, var(--success));">
+              <div class="stat-icon" style="background:var(--success-dim);">📥</div>
+              <div class="stat-label">Total Received</div>
+              <div class="stat-value success" id="stat-received">0.00</div>
+            </div>
+            <div class="stat-card" style="--card-top-color: linear-gradient(90deg, #3d001c, var(--danger));">
+              <div class="stat-icon" style="background:var(--danger-dim);">📤</div>
+              <div class="stat-label">Total Sent</div>
+              <div class="stat-value danger" id="stat-sent">0.00</div>
+            </div>
+            <div class="stat-card" style="--card-top-color: linear-gradient(90deg, #001840, var(--info));">
+              <div class="stat-icon" style="background:var(--info-dim);">🌐</div>
+              <div class="stat-label">FX Holdings</div>
+              <div class="stat-value info" id="stat-fx">0</div>
+            </div>
+          </div>
+
+          <div class="page-grid">
+            <div class="page-card">
+              <h2>Portfolio</h2>
+              <div id="portfolio-balances"></div>
+            </div>
+            <div class="page-card">
+              <h2>Recent Transactions</h2>
+              <div id="recent-transaction-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========== PROFILE PAGE ========== -->
+        <section id="profile-page" class="page-content">
+          <div class="page-header">
+            <h2>Profile</h2>
+            <p>Your account information and wallet details</p>
+          </div>
+
+          <!-- Mobile wallet card -->
+          <div class="page-card mobile-wallet-card">
+            <h2>Your Wallet</h2>
+            <div class="mobile-wallet-row">
+              <span class="mobile-wallet-address" id="mobile-wallet-address"></span>
+              <button class="copy-wallet-btn" onclick="copyWalletAddress()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+          </div>
+
+          <div class="page-card">
+            <h2>Account Details</h2>
+            <div class="profile-grid">
+              <div class="profile-item"><span class="label">First name</span><span class="value" id="profile-first-name"></span></div>
+              <div class="profile-item"><span class="label">Last name</span><span class="value" id="profile-last-name"></span></div>
+              <div class="profile-item"><span class="label">Username</span><span class="value" id="profile-username"></span></div>
+              <div class="profile-item"><span class="label">Email</span><span class="value" id="profile-email"></span></div>
+              <div class="profile-item"><span class="label">NIC</span><span class="value" id="profile-nic"></span></div>
+              <div class="profile-item"><span class="label">Address</span><span class="value" id="profile-address"></span></div>
+              <div class="profile-item"><span class="label">Postal code</span><span class="value" id="profile-postal-code"></span></div>
+              <div class="profile-item"><span class="label">Wallet address</span><span class="value" id="profile-wallet-address" style="font-family:'JetBrains Mono',monospace;font-size:11px;"></span></div>
+              <div class="profile-item"><span class="label">Joined</span><span class="value" id="profile-created-at"></span></div>
+            </div>
+          </div>
+
+          <!-- Settings Card -->
+          <div class="page-card settings-card">
+            <h2>Settings</h2>
+            <div class="settings-list">
+              <div class="settings-item">
+                <div class="settings-item-left">
+                  <div class="settings-icon">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                  </div>
+                  <div>
+                    <div class="settings-label">Appearance</div>
+                    <div class="settings-sub" id="theme-label">Dark mode</div>
+                  </div>
+                </div>
+                <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle theme">
+                  <span class="theme-toggle-knob"></span>
                 </button>
               </div>
             </div>
+          </div>
 
+          <div class="mobile-logout-wrap">
+            <button class="secondary-btn mobile-logout-btn" onclick="logout()">Logout from LAKSEND</button>
+          </div>
+        </section>
+
+        <!-- ========== TRANSFER PAGE ========== -->
+        <section id="transfer-page" class="page-content">
+          <div class="page-header">
+            <h2>Transfer</h2>
+            <p>Send LKRt · Scan QR · Share your QR to receive</p>
+          </div>
+
+          <!-- Tab bar -->
+          <div class="page-card qr-tab-card">
+            <div class="transfer-method-tabs">
+              <button class="transfer-tab-btn active" data-ttab="manual" onclick="switchTransferTab('manual')">✏️ Manual</button>
+              <button class="transfer-tab-btn" data-ttab="scan" onclick="switchTransferTab('scan')">📷 Scan QR</button>
+              <button class="transfer-tab-btn" data-ttab="receive" onclick="switchTransferTab('receive')">📲 My QR</button>
+            </div>
+          </div>
+
+          <!-- Manual tab -->
+          <div id="transfer-tab-manual" class="transfer-tab-content active">
             <div class="page-card">
-              <h2>Account Details</h2>
-              <div class="profile-grid">
-                <div class="profile-item">
-                  <span class="label">First name</span>
-                  <span class="value" id="profile-first-name"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">Last name</span>
-                  <span class="value" id="profile-last-name"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">Username</span>
-                  <span class="value" id="profile-username"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">Email</span>
-                  <span class="value" id="profile-email"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">NIC</span>
-                  <span class="value" id="profile-nic"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">Address</span>
-                  <span class="value" id="profile-address"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">Postal code</span>
-                  <span class="value" id="profile-postal-code"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">Wallet address</span>
-                  <span class="value" id="profile-wallet-address"></span>
-                </div>
-                <div class="profile-item">
-                  <span class="label">Joined</span>
-                  <span class="value" id="profile-created-at"></span>
-                </div>
+              <h2>New Transfer</h2>
+              <p class="muted" style="margin-bottom:18px;">⚠️ Blockchain transactions cannot be reversed once confirmed.</p>
+              <div class="form-group">
+                <label for="receiver-address">Receiver wallet address</label>
+                <input type="text" id="receiver-address" placeholder="Paste recipient wallet address" onblur="fetchReceiverInfo()" />
               </div>
-            </div>
-
-            <!-- Logout button on profile page (mobile-visible) -->
-            <div class="mobile-logout-wrap">
-              <button class="secondary-btn mobile-logout-btn" onclick="logout()">Logout from LAKSEND</button>
-            </div>
-          </section>
-
-          <!-- TRANSFER PAGE -->
-          <section id="transfer-page" class="page-content">
-            <div class="page-header">
-              <h2>Transfer LKRt</h2>
-              <p>Send LKRt to any wallet — manually, by QR scan, or share your QR to receive</p>
-            </div>
-
-            <!-- ── Tab bar ── -->
-            <div class="page-card qr-tab-card">
-              <div class="transfer-method-tabs">
-                <button class="transfer-tab-btn active" data-ttab="manual"  onclick="switchTransferTab('manual')">✏️ Manual</button>
-                <button class="transfer-tab-btn"        data-ttab="scan"    onclick="switchTransferTab('scan')">📷 Scan QR</button>
-                <button class="transfer-tab-btn"        data-ttab="receive" onclick="switchTransferTab('receive')">📲 My QR</button>
-              </div>
-            </div>
-
-            <!-- ══════════════════════════════════════════ -->
-            <!-- MANUAL TAB                                 -->
-            <!-- ══════════════════════════════════════════ -->
-            <div id="transfer-tab-manual" class="transfer-tab-content active">
-
-              <div class="page-card">
-                <h2>New Transfer</h2>
-                <p class="muted" style="margin-bottom:18px;">⚠️ Blockchain transactions cannot be reversed once confirmed.</p>
-
-                <div class="form-group">
-                  <label for="receiver-address">Receiver wallet address</label>
-                  <input type="text" id="receiver-address" placeholder="Paste recipient wallet address" onblur="fetchReceiverInfo()" />
-                </div>
-
-                <div id="receiver-info" class="receiver-info"></div>
-
-                <div class="form-group">
-                  <label for="transfer-amount">Amount (LKRt)</label>
-                  <input type="number" id="transfer-amount" min="0" step="0.01" inputmode="decimal" />
-                </div>
-
-                <div class="form-group">
-                  <label for="transfer-password">Your password</label>
-                  <input type="password" id="transfer-password" placeholder="Confirm with your wallet password" />
-                </div>
-
-                <button class="primary-btn" onclick="prepareTransfer()">Continue</button>
-
-                <div id="transfer-confirmation" class="transfer-confirmation" style="display:none;">
-                  <h3>⚡ Confirm Transfer</h3>
-                  <p id="transfer-summary"></p>
-                  <div id="transfer-otp-section" style="display:none;">
-                    <div class="form-group">
-                      <label>Transfer OTP</label>
-                      <p class="muted" style="font-size:12.5px;margin-bottom:8px;">A code has been sent to your registered email.</p>
-                      <input type="text" id="transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" />
-                    </div>
-                  </div>
-                  <div style="display:flex;gap:10px;margin-top:8px;">
-                    <button class="primary-btn gold-btn" style="flex:2" onclick="confirmTransfer()">Confirm &amp; Send</button>
-                    <button class="secondary-btn" style="flex:1" onclick="cancelTransfer()">Cancel</button>
-                  </div>
-                </div>
-              </div>
-
-              <div id="favorites-section" class="page-card" style="display:none;">
-                <h2>Favourite Payees</h2>
-                <div id="favorites-list" class="favorites-list"></div>
-              </div>
-
-            </div><!-- /manual tab -->
-
-            <!-- ══════════════════════════════════════════ -->
-            <!-- SCAN QR TAB                                -->
-            <!-- ══════════════════════════════════════════ -->
-            <div id="transfer-tab-scan" class="transfer-tab-content">
-
-              <div class="page-card">
-                <h2>Scan QR to Pay</h2>
-                <p class="muted" style="margin-bottom:16px;">Point your camera at a LAKSEND QR code, or upload a saved QR image.</p>
-
-                <!-- Camera viewport -->
-                <div class="qr-scan-area">
-                  <video id="qr-video" class="qr-video" autoplay playsinline muted></video>
-                  <canvas id="qr-canvas" style="display:none;"></canvas>
-                  <div class="qr-scan-overlay">
-                    <div class="qr-scan-corner tl"></div>
-                    <div class="qr-scan-corner tr"></div>
-                    <div class="qr-scan-corner bl"></div>
-                    <div class="qr-scan-corner br"></div>
-                    <div class="qr-scan-line"></div>
-                  </div>
-                  <!-- Placeholder when camera is off -->
-                  <div id="qr-cam-placeholder" class="qr-cam-placeholder">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#C9A227" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    <span>Camera off</span>
-                  </div>
-                </div>
-
-                <div style="display:flex;gap:10px;margin-top:14px;">
-                  <button id="qr-camera-btn" class="primary-btn" style="flex:1;" onclick="startQrCamera()">📷 Start Camera</button>
-                  <button class="secondary-btn" style="flex:1;" onclick="stopQrCamera()">⏹ Stop</button>
-                </div>
-
-                <div class="qr-divider">— or upload a QR image —</div>
-
-                <label class="qr-upload-label" for="qr-upload-input">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  Upload QR Image
-                </label>
-                <input type="file" id="qr-upload-input" accept="image/*" style="display:none;" onchange="handleQrUpload(event)" />
-
-                <div id="qr-scan-result" class="qr-scan-result" style="display:none;"></div>
-              </div>
-
-              <!-- QR Pay form — shown after a successful scan -->
-              <div id="qr-pay-form" class="page-card" style="display:none;">
-                <h2>⚡ QR Payment Details</h2>
-                <div class="qr-pay-summary" id="qr-pay-summary"></div>
-
-                <div class="form-group" style="margin-top:16px;">
-                  <label for="qr-pay-amount">Amount (LKRt)</label>
-                  <input type="number" id="qr-pay-amount" min="0" step="0.01" inputmode="decimal" placeholder="Enter amount to send" />
-                </div>
-                <div class="form-group">
-                  <label for="qr-pay-password">Your password</label>
-                  <input type="password" id="qr-pay-password" placeholder="Confirm with your wallet password" />
-                </div>
-
-                <div style="display:flex;gap:10px;">
-                  <button class="primary-btn gold-btn" style="flex:2" onclick="prepareQrTransfer()">Continue</button>
-                  <button class="secondary-btn" style="flex:1" onclick="cancelQrPay()">Cancel</button>
-                </div>
-
-                <!-- OTP confirmation (same flow as manual) -->
-                <div id="qr-transfer-confirmation" class="transfer-confirmation" style="display:none;">
-                  <h3>⚡ Confirm QR Transfer</h3>
-                  <p id="qr-transfer-summary"></p>
-                  <div id="qr-transfer-otp-section" style="display:none;">
-                    <div class="form-group">
-                      <label>Transfer OTP</label>
-                      <p class="muted" style="font-size:12.5px;margin-bottom:8px;">A code has been sent to your registered email.</p>
-                      <input type="text" id="qr-transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" />
-                    </div>
-                  </div>
-                  <div style="display:flex;gap:10px;margin-top:8px;">
-                    <button class="primary-btn gold-btn" style="flex:2" onclick="confirmQrTransfer()">Confirm &amp; Send</button>
-                    <button class="secondary-btn" style="flex:1" onclick="cancelQrPay()">Cancel</button>
-                  </div>
-                </div>
-              </div>
-
-            </div><!-- /scan tab -->
-
-            <!-- ══════════════════════════════════════════ -->
-            <!-- MY QR (RECEIVE) TAB                        -->
-            <!-- ══════════════════════════════════════════ -->
-            <div id="transfer-tab-receive" class="transfer-tab-content">
-
-              <div class="page-card" style="text-align:center;">
-                <h2>My Payment QR</h2>
-                <p class="muted" style="margin-bottom:20px;">Share this code so others can send you LKRt instantly — no address needed.</p>
-
-                <!-- QR code renders here -->
-                <div class="my-qr-wrapper">
-                  <div id="my-qr-code" class="my-qr-container"></div>
-                </div>
-
-                <div class="my-qr-address" id="my-qr-address-label"></div>
-
-                <!-- Optional: pre-fill amount / note in the QR -->
-                <div style="text-align:left;margin-top:20px;">
-                  <div class="form-group">
-                    <label for="qr-request-amount">Request specific amount (optional)</label>
-                    <input type="number" id="qr-request-amount" min="0" step="0.01" inputmode="decimal" placeholder="Leave blank for any amount" />
-                  </div>
-                  <div class="form-group">
-                    <label for="qr-label">Label / Note (optional)</label>
-                    <input type="text" id="qr-label" placeholder="e.g. Rent, Invoice #123" maxlength="60" />
-                  </div>
-                </div>
-
-                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                  <button class="primary-btn" style="width:auto;padding:12px 24px;flex:1;min-width:130px;" onclick="generateMyQR()">🔄 Regenerate</button>
-                  <button class="secondary-btn" style="width:auto;padding:12px 20px;flex:1;min-width:130px;" onclick="downloadMyQR()">⬇️ Save Image</button>
-                </div>
-              </div>
-
-            </div><!-- /receive tab -->
-
-          </section>
-
-          <!-- CONVERT PAGE -->
-          <section id="convert-page" class="page-content">
-            <div class="page-header">
-              <h2>Currency Conversion</h2>
-              <p>Convert between LKRt and foreign currencies at live rates</p>
-            </div>
-            <div class="page-card">
-              <h2>Convert</h2>
-              <div class="convert-grid">
-                <div class="form-group">
-                  <label for="from-currency">From</label>
-                  <select id="from-currency" onchange="updateConversionBalances()"></select>
-                  <small id="from-currency-balance" class="muted"></small>
-                </div>
-                <div class="convert-arrow">⇄</div>
-                <div class="form-group">
-                  <label for="to-currency">To</label>
-                  <select id="to-currency" onchange="updateConversionBalances()"></select>
-                  <small id="to-currency-balance" class="muted"></small>
-                </div>
+              <div id="receiver-info" class="receiver-info"></div>
+              <div class="form-group">
+                <label for="transfer-amount">Amount (LKRt)</label>
+                <input type="number" id="transfer-amount" min="0" step="0.01" inputmode="decimal" />
               </div>
               <div class="form-group">
-                <label for="convert-amount">Amount</label>
-                <input type="number" id="convert-amount" min="0" step="0.01" inputmode="decimal" />
+                <label for="transfer-password">Your password</label>
+                <input type="password" id="transfer-password" placeholder="Confirm with your wallet password" />
               </div>
-              <button class="primary-btn" onclick="convertCurrency()">Convert Now</button>
-              <div id="convert-result" style="margin-top:16px;"></div>
+              <button class="primary-btn" onclick="prepareTransfer()">Continue</button>
+              <div id="transfer-confirmation" class="transfer-confirmation" style="display:none;">
+                <h3>⚡ Confirm Transfer</h3>
+                <p id="transfer-summary"></p>
+                <div id="transfer-otp-section" style="display:none;">
+                  <div class="form-group" style="margin-top:14px;">
+                    <label>Transfer OTP</label>
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;">A code has been sent to your registered email.</p>
+                    <input type="text" id="transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" />
+                  </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:14px;">
+                  <button class="primary-btn gold-btn" style="flex:2" onclick="confirmTransfer()">Confirm &amp; Send</button>
+                  <button class="secondary-btn" style="flex:1" onclick="cancelTransfer()">Cancel</button>
+                </div>
+              </div>
             </div>
+            <div id="favorites-section" class="page-card" style="display:none;">
+              <h2>Favourite Payees</h2>
+              <div id="favorites-list" class="favorites-list"></div>
+            </div>
+          </div>
 
+          <!-- Scan QR tab -->
+          <div id="transfer-tab-scan" class="transfer-tab-content">
             <div class="page-card">
-              <h2>FX Balances</h2>
-              <div id="fx-balances"></div>
+              <h2>Scan QR to Pay</h2>
+              <p class="muted" style="margin-bottom:16px;">Point camera at a LAKSEND QR code, or upload a saved image.</p>
+              <div class="qr-scan-area">
+                <video id="qr-video" class="qr-video" autoplay playsinline muted></video>
+                <canvas id="qr-canvas" style="display:none;"></canvas>
+                <div class="qr-scan-overlay">
+                  <div class="qr-scan-corner tl"></div>
+                  <div class="qr-scan-corner tr"></div>
+                  <div class="qr-scan-corner bl"></div>
+                  <div class="qr-scan-corner br"></div>
+                  <div class="qr-scan-line"></div>
+                </div>
+                <div id="qr-cam-placeholder" class="qr-cam-placeholder">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <span>Camera off</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:14px;">
+                <button id="qr-camera-btn" class="primary-btn" style="flex:1;" onclick="startQrCamera()">📷 Start Camera</button>
+                <button class="secondary-btn" style="flex:1;" onclick="stopQrCamera()">⏹ Stop</button>
+              </div>
+              <div class="qr-divider">— or upload a QR image —</div>
+              <label class="qr-upload-label" for="qr-upload-input">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload QR Image
+              </label>
+              <input type="file" id="qr-upload-input" accept="image/*" style="display:none;" onchange="handleQrUpload(event)" />
+              <div id="qr-scan-result" class="qr-scan-result" style="display:none;"></div>
             </div>
-          </section>
+            <div id="qr-pay-form" class="page-card" style="display:none;">
+              <h2>⚡ QR Payment Details</h2>
+              <div class="qr-pay-summary" id="qr-pay-summary"></div>
+              <div class="form-group" style="margin-top:16px;">
+                <label for="qr-pay-amount">Amount (LKRt)</label>
+                <input type="number" id="qr-pay-amount" min="0" step="0.01" inputmode="decimal" placeholder="Enter amount" />
+              </div>
+              <div class="form-group">
+                <label for="qr-pay-password">Your password</label>
+                <input type="password" id="qr-pay-password" placeholder="Confirm with your password" />
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button class="primary-btn gold-btn" style="flex:2" onclick="prepareQrTransfer()">Continue</button>
+                <button class="secondary-btn" style="flex:1" onclick="cancelQrPay()">Cancel</button>
+              </div>
+              <div id="qr-transfer-confirmation" class="transfer-confirmation" style="display:none;">
+                <h3>⚡ Confirm QR Transfer</h3>
+                <p id="qr-transfer-summary"></p>
+                <div id="qr-transfer-otp-section" style="display:none;">
+                  <div class="form-group" style="margin-top:14px;">
+                    <label>Transfer OTP</label>
+                    <p class="muted" style="font-size:12px;margin-bottom:8px;">Check your email for the code.</p>
+                    <input type="text" id="qr-transfer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" />
+                  </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:14px;">
+                  <button class="primary-btn gold-btn" style="flex:2" onclick="confirmQrTransfer()">Confirm &amp; Send</button>
+                  <button class="secondary-btn" style="flex:1" onclick="cancelQrPay()">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <!-- TRANSACTIONS PAGE -->
-          <section id="transactions-page" class="page-content">
-            <div class="page-header">
-              <h2>Transaction History</h2>
-              <p>All your blockchain transactions · Download slips anytime</p>
+          <!-- Receive / My QR tab -->
+          <div id="transfer-tab-receive" class="transfer-tab-content">
+            <div class="page-card" style="text-align:center;">
+              <h2>My Payment QR</h2>
+              <p class="muted" style="margin-bottom:20px;">Share this so others can send you LKRt instantly.</p>
+              <div class="my-qr-wrapper">
+                <div id="my-qr-code" class="my-qr-container"></div>
+              </div>
+              <div class="my-qr-address" id="my-qr-address-label"></div>
+              <div style="text-align:left;margin-top:20px;">
+                <div class="form-group">
+                  <label for="qr-request-amount">Request amount (optional)</label>
+                  <input type="number" id="qr-request-amount" min="0" step="0.01" inputmode="decimal" placeholder="Any amount" />
+                </div>
+                <div class="form-group">
+                  <label for="qr-label">Label / Note (optional)</label>
+                  <input type="text" id="qr-label" placeholder="e.g. Rent, Invoice #123" maxlength="60" />
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                <button class="primary-btn" style="width:auto;padding:12px 24px;flex:1;min-width:130px;" onclick="generateMyQR()">🔄 Regenerate</button>
+                <button class="secondary-btn" style="width:auto;padding:12px 20px;flex:1;min-width:130px;" onclick="downloadMyQR()">⬇️ Save Image</button>
+              </div>
             </div>
-            <div class="page-card">
-              <h2>All Transactions</h2>
-              <div id="transaction-list"></div>
-            </div>
-          </section>
+          </div>
+        </section>
 
-        </main>
-      </div>
+        <!-- ========== CONVERT PAGE ========== -->
+        <section id="convert-page" class="page-content">
+          <div class="page-header">
+            <h2>Convert</h2>
+            <p>Swap between LKRt and foreign currencies at live rates</p>
+          </div>
+          <div class="page-card">
+            <h2>Currency Exchange</h2>
+            <div class="convert-grid">
+              <div class="form-group">
+                <label for="from-currency">From</label>
+                <select id="from-currency" onchange="updateConversionBalances()"></select>
+                <small id="from-currency-balance" class="muted"></small>
+              </div>
+              <div class="convert-arrow">⇄</div>
+              <div class="form-group">
+                <label for="to-currency">To</label>
+                <select id="to-currency" onchange="updateConversionBalances()"></select>
+                <small id="to-currency-balance" class="muted"></small>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="convert-amount">Amount</label>
+              <input type="number" id="convert-amount" min="0" step="0.01" inputmode="decimal" />
+            </div>
+            <button class="primary-btn" onclick="convertCurrency()">Convert Now</button>
+            <div id="convert-result" style="margin-top:16px;display:none;"></div>
+          </div>
+          <div class="page-card">
+            <h2>FX Balances</h2>
+            <div id="fx-balances"></div>
+          </div>
+        </section>
 
-      <!-- MOBILE NAV -->
-      <nav class="mobile-nav">
-        <div class="mobile-nav-inner">
-          <button class="nav-item active" data-page="overview" onclick="showPage('overview')">
-            <div class="nav-icon-wrap">
-              <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-            </div>
-            <span>Home</span>
-          </button>
-          <button class="nav-item" data-page="transfer" onclick="showPage('transfer')">
-            <div class="nav-icon-wrap">
-              <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </div>
-            <span>Send</span>
-          </button>
-          <button class="nav-item" data-page="convert" onclick="showPage('convert')">
-            <div class="nav-icon-wrap">
-              <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-            </div>
-            <span>Convert</span>
-          </button>
-          <button class="nav-item" data-page="transactions" onclick="showPage('transactions')">
-            <div class="nav-icon-wrap">
-              <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            </div>
-            <span>History</span>
-          </button>
-          <button class="nav-item" data-page="profile" onclick="showPage('profile')">
-            <div class="nav-icon-wrap">
-              <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <span>Profile</span>
-          </button>
-        </div>
-      </nav>
+        <!-- ========== TRANSACTIONS PAGE ========== -->
+        <section id="transactions-page" class="page-content">
+          <div class="page-header">
+            <h2>History</h2>
+            <p>All blockchain transactions · Download receipts anytime</p>
+          </div>
+          <div class="page-card">
+            <h2>All Transactions</h2>
+            <div id="transaction-list"></div>
+          </div>
+        </section>
 
-    </section>
-  </div>
+      </main>
+    </div>
 
-  <!-- Notifications -->
-  <div id="notification-container" class="notification-container"></div>
-
-  <!-- PDF Slip Modal -->
-  <div id="slip-modal-overlay" class="slip-modal-overlay" style="display:none;" onclick="closeSlipModal(event)">
-    <div class="slip-modal">
-      <div class="slip-modal-header">
-        <div class="slip-modal-title">
-          <img src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png" alt="LAKSEND" class="slip-logo" onerror="this.style.display='none'" />
-          <h3>Transfer Receipt</h3>
-        </div>
-        <button class="slip-close-btn" onclick="closeSlipModalDirect()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <!-- Mobile Bottom Nav -->
+    <nav class="mobile-nav">
+      <div class="mobile-nav-inner">
+        <button class="nav-item active" data-page="overview" onclick="showPage('overview')">
+          <div class="nav-icon-wrap">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <span>Home</span>
+        </button>
+        <button class="nav-item" data-page="transfer" onclick="showPage('transfer')">
+          <div class="nav-icon-wrap">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </div>
+          <span>Send</span>
+        </button>
+        <button class="nav-item" data-page="convert" onclick="showPage('convert')">
+          <div class="nav-icon-wrap">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          </div>
+          <span>Convert</span>
+        </button>
+        <button class="nav-item" data-page="transactions" onclick="showPage('transactions')">
+          <div class="nav-icon-wrap">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <span>History</span>
+        </button>
+        <button class="nav-item" data-page="profile" onclick="showPage('profile')">
+          <div class="nav-icon-wrap">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <span>Profile</span>
         </button>
       </div>
-      <div class="slip-modal-body" id="slip-preview-content">
-        <!-- Filled by JS -->
+    </nav>
+
+  </section>
+</div>
+
+<!-- Notifications -->
+<div id="notification-container" class="notification-container"></div>
+
+<!-- PDF Slip Modal -->
+<div id="slip-modal-overlay" class="slip-modal-overlay" style="display:none;" onclick="closeSlipModal(event)">
+  <div class="slip-modal">
+    <div class="slip-modal-header">
+      <div class="slip-modal-title">
+        <img src="https://i.postimg.cc/MGrJgxYB/Lak-Send-Logo-Curved.png" alt="LAKSEND" class="slip-logo" onerror="this.style.display='none'" />
+        <h3>Transfer Receipt</h3>
       </div>
-      <div class="slip-actions">
-        <button class="primary-btn gold-btn" onclick="downloadSlipPDF()">Download PDF Slip</button>
-        <button class="secondary-btn" style="width:auto;padding:12px 20px;" onclick="closeSlipModalDirect()">Close</button>
-      </div>
+      <button class="slip-close-btn" onclick="closeSlipModalDirect()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="slip-modal-body" id="slip-preview-content"></div>
+    <div class="slip-actions">
+      <button class="primary-btn gold-btn" onclick="downloadSlipPDF()">Download PDF Slip</button>
+      <button class="secondary-btn" style="width:auto;padding:12px 20px;" onclick="closeSlipModalDirect()">Close</button>
     </div>
   </div>
+</div>
 
-  <script src="script.js"></script>
-  <script>
-    // Mirror wallet address into mobile profile card
-    (function () {
-      const source = document.getElementById('wallet-address');
-      const target = document.getElementById('mobile-wallet-address');
-      if (!source || !target) return;
-      const sync = () => { target.textContent = source.textContent; };
-      sync();
-      new MutationObserver(sync).observe(source, { childList: true, characterData: true, subtree: true });
-    })();
-
-    // Register Service Worker for PWA
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
-      });
-    }
-  </script>
+<script src="script.js"></script>
+<script src="ui-patch.js"></script>
 </body>
 </html>
