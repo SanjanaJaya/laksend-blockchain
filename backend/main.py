@@ -701,10 +701,8 @@ def transfer(request: TransferRequest):
             detail="Transaction failed",
         )
 
-    # 9. Auto-mine this transaction (sender collects reward)
-    block = blockchain.mine_pending_transactions(
-        mining_reward_address=sender["wallet_address"]
-    )
+    # 9. Auto-mine this transaction
+    block = blockchain.mine_pending_transactions()
 
     # 10. Send receipt email to receiver
     receiver_user = db.get_user_by_address(request.receiver_address)
@@ -981,13 +979,12 @@ def mine_block(request: MineRequest):
             detail="Miner address not found",
         )
 
-    block = blockchain.mine_pending_transactions(request.miner_address)
+    block = blockchain.mine_pending_transactions()
     blockchain.adjust_difficulty(target_time=10)
 
     return {
         "message": "✅ Block mined successfully!",
         "block": block.to_dict(),
-        "mining_reward": blockchain.mining_reward,
         "miner_balance": blockchain.get_balance(request.miner_address),
         "difficulty": blockchain.difficulty,
         "nonce": block.nonce,
@@ -1000,7 +997,6 @@ def get_mining_stats():
     stats = blockchain.get_mining_stats()
     return {
         "difficulty": stats["difficulty"],
-        "mining_reward": stats["mining_reward"],
         "pending_transactions": stats["pending_transactions"],
         "total_blocks": stats["total_blocks"],
         "average_block_time": stats["average_block_time"],

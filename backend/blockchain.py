@@ -68,7 +68,6 @@ class Blockchain:
         self.pending_transactions: List[Dict] = []
         self.balances: Dict[str, float] = {}
         self.difficulty = difficulty
-        self.mining_reward = 0.0  # LKRt reward per mined block
         self.create_genesis_block()
 
     def create_genesis_block(self):
@@ -120,9 +119,7 @@ class Blockchain:
 
         return False
 
-    def mine_pending_transactions(
-        self, mining_reward_address: str | None = None
-    ):
+    def mine_pending_transactions(self):
         """Mine all pending transactions into a new block and update balances."""
         if not self.pending_transactions:
             return None
@@ -162,16 +159,6 @@ class Blockchain:
                 self.balances[sender] = self.balances.get(sender, 0) - amount
 
             self.balances[receiver] = self.balances.get(receiver, 0) + amount
-
-        # Give mining reward
-        if mining_reward_address is not None:
-            self.balances[mining_reward_address] = self.balances.get(
-                mining_reward_address, 0
-            ) + self.mining_reward
-            print(
-                f"💰 Mining reward: {self.mining_reward} LKRt "
-                f"awarded to {mining_reward_address[:16]}..."
-            )
 
         # Commit block and clear pool
         self.chain.append(block)
@@ -251,7 +238,6 @@ class Blockchain:
 
         return {
             "difficulty": self.difficulty,
-            "mining_reward": self.mining_reward,
             "total_blocks": len(self.chain),
             "pending_transactions": len(self.pending_transactions),
             "average_block_time": avg_block_time,
