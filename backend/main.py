@@ -9,10 +9,12 @@ import random
 import requests as http_requests
 import time
 from datetime import datetime
-from dotenv import load_dotenv
-
-# Load environment variables from .env (must be in the same directory as this file)
-load_dotenv()
+# Load .env for local development; on Railway env vars are injected natively
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed (e.g. Railway) — env vars already in environment
 
 from blockchain import Blockchain
 from wallet import Wallet
