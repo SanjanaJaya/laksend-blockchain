@@ -294,8 +294,8 @@ select option{background:var(--bg-card);color:var(--text-1);}
 .transfer-tab-btn:hover:not(.active){color:var(--text-1);}
 .transfer-tab-btn.active{color:var(--gold);border-bottom-color:var(--gold);}
 .transfer-tab-content{display:none;} .transfer-tab-content.active{display:block;}
-.qr-scan-area{position:relative;width:100%;max-width:280px;aspect-ratio:1/1;margin:0 auto;border-radius:var(--r-lg);overflow:hidden;background:var(--bg-app);display:flex;align-items:center;justify-content:center;border:1px solid var(--border-gold);}
-.qr-video{width:100%;height:100%;object-fit:cover;display:none;}
+.qr-scan-area{position:relative;width:100%;max-width:280px;aspect-ratio:1/1;margin:0 auto;border-radius:var(--r-lg);overflow:hidden;background:var(--bg-app);display:flex;align-items:center;justify-content:center;border:1px solid var(--border-gold);isolation:isolate;}
+.qr-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;border-radius:inherit;}
 .qr-scan-overlay{position:absolute;inset:0;pointer-events:none;z-index:2;}
 .qr-scan-corner{position:absolute;width:20px;height:20px;border-color:var(--gold);border-style:solid;}
 .qr-scan-corner.tl{top:13px;left:13px;border-width:2px 0 0 2px;border-radius:3px 0 0 0;}
@@ -304,7 +304,7 @@ select option{background:var(--bg-card);color:var(--text-1);}
 .qr-scan-corner.br{bottom:13px;right:13px;border-width:0 2px 2px 0;border-radius:0 0 3px 0;}
 @keyframes qr-scan-sweep{0%{top:13px;opacity:0;}5%{opacity:1;}95%{opacity:1;}100%{top:calc(100% - 13px);opacity:0;}}
 .qr-scan-line{position:absolute;left:13px;right:13px;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);animation:qr-scan-sweep 2.5s ease-in-out infinite;box-shadow:0 0 8px var(--gold-glow);}
-.qr-cam-placeholder{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--text-3);font-size:12px;}
+.qr-cam-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-3);font-size:12px;z-index:1;}
 .qr-divider{text-align:center;color:var(--text-3);font-size:12px;margin:12px 0 9px;}
 .qr-upload-label{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border:1.5px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;transition:var(--t-fast);}
 .qr-upload-label:hover{border-color:var(--gold);color:var(--gold);}
