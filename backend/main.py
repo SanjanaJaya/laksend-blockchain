@@ -3,11 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 import hashlib
 import json
+import os
 from typing import List
 import random
 import requests as http_requests
 import time
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env (must be in the same directory as this file)
+load_dotenv()
 
 from blockchain import Blockchain
 from wallet import Wallet
@@ -44,10 +49,10 @@ SUPPORTED_CURRENCIES: List[str] = [
 
 # ================= EMAIL / OTP CONFIG =================
 
-BREVO_API_KEY = "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"
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
-APP_EMAIL = "laksend.lk@gmail.com"
-APP_EMAIL_NAME = "LAKSEND"
+APP_EMAIL = os.environ.get("APP_EMAIL", "laksend.lk@gmail.com")
+APP_EMAIL_NAME = os.environ.get("APP_EMAIL_NAME", "LAKSEND")
 
 
 def send_otp_email(to_email: str, full_name: str, otp_code: str):
