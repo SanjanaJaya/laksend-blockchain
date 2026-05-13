@@ -6,6 +6,7 @@ import json
 import os
 from typing import List
 import random
+import threading
 import requests as http_requests
 import time
 from datetime import datetime
@@ -42,6 +43,13 @@ transfer_otp_store = {}  # { username: { "otp": "123456", "expires": timestamp }
 
 # In-memory OTP store for password reset
 password_reset_otp_store = {}  # { username: { "otp": "123456", "expires": timestamp } }
+
+# -----------------------------------------------------------------------
+# TRANSFER LOCK
+# Only one transfer can modify the blockchain at a time.
+# This prevents double-spending when multiple users send simultaneously.
+# -----------------------------------------------------------------------
+transfer_lock = threading.Lock()
 
 # Supported currencies
 SUPPORTED_CURRENCIES: List[str] = [
@@ -663,46 +671,54 @@ def transfer(request: TransferRequest):
             ),
         )
 
-    # 4. Check sufficient balance
-    sender_balance = blockchain.get_balance(sender["wallet_address"])
-    if sender_balance < request.amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Insufficient balance. Available: {sender_balance} LKRt",
+    # Steps 4-9 are wrapped in transfer_lock.
+    # This guarantees that even if 10 users all press "Send" at the exact same
+    # millisecond, each transfer is fully completed (balance checked → mined)
+    # before the next one starts. No balance can be read in a stale state.
+    tx = None
+    block = None
+    with transfer_lock:
+        # 4. Re-read balance INSIDE the lock — gets the latest committed value
+        sender_balance = blockchain.get_balance(sender["wallet_address"])
+        if sender_balance < request.amount:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient balance. Available: {sender_balance} LKRt",
+            )
+
+        # 5. Create transaction
+        tx = Transaction(
+            sender["wallet_address"],
+            request.receiver_address,
+            request.amount,
+            sender["public_key"],
         )
 
-    # 5. Create transaction
-    tx = Transaction(
-        sender["wallet_address"],
-        request.receiver_address,
-        request.amount,
-        sender["public_key"],
-    )
+        # 6. Reconstruct wallet with decrypted private key
+        wallet = Wallet()
+        wallet.private_key = decrypted_private_key
+        wallet.public_key = sender["public_key"]
+        wallet.address = sender["wallet_address"]
 
-    # 6. Reconstruct wallet with decrypted private key
-    wallet = Wallet()
-    wallet.private_key = decrypted_private_key
-    wallet.public_key = sender["public_key"]
-    wallet.address = sender["wallet_address"]
+        # 7. Sign and verify
+        tx.sign_transaction(wallet)
+        if not tx.is_valid():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid transaction signature",
+            )
 
-    # 7. Sign and verify
-    tx.sign_transaction(wallet)
-    if not tx.is_valid():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid transaction signature",
-        )
+        # 8. Add to pending pool
+        success = blockchain.add_transaction(tx.to_dict())
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Transaction failed",
+            )
 
-    # 8. Add to pending pool
-    success = blockchain.add_transaction(tx.to_dict())
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Transaction failed",
-        )
-
-    # 9. Auto-mine this transaction
-    block = blockchain.mine_pending_transactions()
+        # 9. Mine the transaction into a block — lock is held until mining done
+        block = blockchain.mine_pending_transactions()
+    # Lock released here — next queued transfer can now proceed
 
     # 10. Send receipt email to receiver
     receiver_user = db.get_user_by_address(request.receiver_address)
